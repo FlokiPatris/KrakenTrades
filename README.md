@@ -1,4 +1,4 @@
-# 📘 KrakenTrades
+# 🐙 KrakenTrades 🐙
 
 Automated setup & testing pipeline for Kraken trade reports.
 
