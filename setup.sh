@@ -1,52 +1,58 @@
-#!/bin/bash
+set -euo pipefail
 
 # === CONFIG ===
-REPO_URL="https://github.com/FlokiPatris/KrakenTrades.git"
-PROJECT_DIR="KrakenTrades"
+PYTHON_VERSION="3.10"
+ENV_FILE=".env"
+PYENV_ROOT="${HOME}/.pyenv"
 
 echo "🚀 Starting KrakenTrades setup..."
 
-# === 1. Clone the repository ===
-if [ -d "$PROJECT_DIR" ]; then
-    echo "📁 Project directory '$PROJECT_DIR' already exists. Skipping clone."
+# === 1. Install pyenv + Python ===
+if ! command -v pyenv &>/dev/null; then
+    echo "🐍 Installing pyenv..."
+    curl https://pyenv.run | bash
+
+    export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
 else
-    echo "🔗 Cloning repository from $REPO_URL..."
-    git clone "$REPO_URL"
-    if [ $? -ne 0 ]; then
-        echo "❌ Failed to clone repository. Exiting."
-        exit 1
-    fi
+    echo "✅ pyenv already installed."
 fi
 
-cd "$PROJECT_DIR" || { echo "❌ Failed to enter project directory. Exiting."; exit 1; }
+if ! pyenv versions --bare | grep -q "$PYTHON_VERSION"; then
+    echo "📦 Installing Python $PYTHON_VERSION via pyenv..."
+    pyenv install "$PYTHON_VERSION"
+fi
+
+pyenv global "$PYTHON_VERSION"
+echo "🧪 Using Python $(python3 --version)"
 
 # === 2. Install Poetry ===
-if ! command -v poetry &> /dev/null; then
+if ! command -v poetry &>/dev/null; then
     echo "📦 Installing Poetry..."
     curl -sSL https://install.python-poetry.org | python3 -
-    export PATH="$HOME/.local/bin:$PATH"
-    if ! command -v poetry &> /dev/null; then
-        echo "❌ Poetry installation failed. Exiting."
-        exit 1
-    fi
+    export PATH="${HOME}/.local/bin:$PATH"
 else
     echo "✅ Poetry is already installed."
 fi
 
-# === 3. Install dependencies ===
-echo "📦 Installing dependencies with Poetry..."
-poetry install
-if [ $? -ne 0 ]; then
-    echo "❌ Poetry failed to install dependencies. Exiting."
-    exit 1
+# === 3. Set Python for Poetry ===
+echo "🧪 Configuring Poetry to use Python $PYTHON_VERSION..."
+poetry env use "$(pyenv which python)"
+
+# === 4. Install Dependencies ===
+echo "📦 Installing dependencies via Poetry..."
+poetry install --no-root || { echo "❌ Dependency install failed."; exit 1; }
+
+# === 5. Load .env (Optional) ===
+if [ -f "$ENV_FILE" ]; then
+    echo "🧪 Loading env variables from $ENV_FILE..."
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+else
+    echo "ℹ️ No $ENV_FILE found. Continuing without env vars."
 fi
 
-# === 4. Load environment variables ===
-
-# === 5. Run tests ===
-
-
-# === 6. Optional: Run main script ===
+# === 6. Optional: Run Main Script ===
 if [ -f "main.py" ]; then
     echo "🚀 Running main.py..."
     poetry run python main.py
@@ -54,4 +60,4 @@ else
     echo "ℹ️ No main.py found. Setup complete."
 fi
 
-echo "✅ KrakenTrades setup complete!"
+echo "✅ KrakenTrades setup finished successfully!"

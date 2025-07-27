@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{ include = "kraken_core" }]
 
 [tool.poetry.dependencies]
-python = ">=3.8.1,<4.0"
+python = ">=3.9,<4.0"
 requests = "^2.31.0"
 python-dotenv = "^1.0.0"
 pydantic = "^2.6.0"
@@ -18,7 +18,7 @@ openpyxl = "^3.1.2"
 pdfplumber = "^0.10.2"
 
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 black = "^24.0.0"
 flake8 = "^7.0.0"

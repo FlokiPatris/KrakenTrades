@@ -1,18 +1,18 @@
-# Kraken Core 🐙
+# 📘 KrakenTrades
 
-A Python package for interacting with the Kraken API, built with simplicity and extensibility in mind.
+Automated setup & testing pipeline for Kraken trade reports.
 
----
+## 🚀 Quick Install (Private Repo)
 
-## 🚀 Installation Guide
-
-Follow these steps to set up the project locally.
-
-### 1. Clone the Repository
+### 1️⃣ Clone + Enter the Repo
 
 ```bash
-git clone https://github.com/your-username/kraken-core.git
-cd kraken-core
+git clone git@github.com:FlokiPatris/KrakenTrades.git && cd KrakenTrades
+```
 
-pip install --upgrade pip setuptools
-pip install -r requirements.txt
+### 2️⃣ Run the Setup Script
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
