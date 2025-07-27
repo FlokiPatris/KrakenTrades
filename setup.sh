@@ -81,6 +81,12 @@ run_main_script() {
 main() {
     log "🚀 KrakenTrades setup started"
 
+    # 🛡️ Git Bash SSL fix for Windows
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+        log "Detected Git Bash on Windows — configuring curl to use OpenSSL"
+        export CURL_SSL_BACKEND=openssl
+    fi
+
     install_pyenv
     setup_python
     install_poetry
@@ -91,5 +97,6 @@ main() {
 
     log "✅ Setup finished successfully!"
 }
+
 
 main "$@"
