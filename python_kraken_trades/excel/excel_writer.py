@@ -7,18 +7,10 @@ import pandas as pd
 
 
 def generate_trade_report_block(title: str, values: dict) -> pd.DataFrame:
-    """
-    Creates a single-row DataFrame block with a title and associated values.
-    Used for summary rows in the breakdown sheet.
-    """
     return pd.DataFrame([{TradeColumn.UNIQUE_ID.value: title, **values}])
 
 
 def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFrame:
-    """
-    Generates a detailed breakdown sheet for a single trading pair,
-    including Buys, Sells, and hypothetical value scenarios.
-    """
     trade_summary_df = pd.concat([
         pd.DataFrame([{TradeColumn.UNIQUE_ID.value: "Buys"}]),
         snapshot.buys,
@@ -39,7 +31,7 @@ def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFram
             TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume:.4f} {snapshot.token}",
             TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value:.4f} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
         })
-    ], ignore_index=True).drop(columns=[TradeColumn.CURRENCY.value, TradeColumn.TOKEN.value])
+    ], ignore_index=True).drop(columns=[TradeColumn.CURRENCY.value, TradeColumn.TOKEN.value], errors="ignore")
 
     return trade_summary_df
 
@@ -50,9 +42,6 @@ def generate_portfolio_summary(
     unrealized_value: float,
     total_all_sold_now_value: float
 ) -> pd.DataFrame:
-    """
-    Creates a summary sheet for the entire portfolio, including net position and potential profit.
-    """
     net_result = round((total_sells + unrealized_value - total_buys), 4)
     potential_profit = round(total_all_sold_now_value - total_buys, 4)
 
@@ -70,9 +59,6 @@ def generate_portfolio_summary(
 
 
 def export_roi_table(roi_records: list[MainSummaryMetrics], writer: pd.ExcelWriter) -> None:
-    """
-    Converts a list of MainSummaryMetrics into a sorted DataFrame and writes it to Excel.
-    """
     roi_df = pd.DataFrame([r.__dict__ for r in roi_records]).sort_values("roi", ascending=True)
     roi_df.rename(columns={
         "total_cost": "Total Cost (€)",
@@ -84,13 +70,17 @@ def export_roi_table(roi_records: list[MainSummaryMetrics], writer: pd.ExcelWrit
     }, inplace=True)
     roi_df.to_excel(writer, sheet_name="Asset ROI", index=False)
 
+def apply_manual_injections(pair: str, buys: pd.DataFrame) -> pd.DataFrame:
+    """
+    Applies manual corrections or injections to the 'buys' DataFrame based on the trading pair.
+    """
+    if pair == "XCN/EUR":
+        return manual_onyx_injection(buys)
+    elif pair == "LTC/EUR":
+        return manual_litecoin_injection(buys)
+    return buys
 
-# === CORE LOGIC ===
 def write_excel(df: pd.DataFrame, output: Path) -> None:
-    """
-    Main function to generate an Excel report from trade data.
-    Includes per-asset breakdowns, portfolio summary, and ROI analysis.
-    """
     total_buys = 0.0
     total_sells = 0.0
     unrealized_value = 0.0
@@ -103,28 +93,23 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             token = group[TradeColumn.TOKEN.value].iloc[0]
             market_price = fetch_market_price(pair)
 
-            buys = group[group[TradeColumn.TRADE_TYPE.value] == "Buy"].copy()
             sells = group[group[TradeColumn.TRADE_TYPE.value] == "Sell"].copy()
+            buys = group[group[TradeColumn.TRADE_TYPE.value] == "Buy"].copy()
+            buys = apply_manual_injections(pair, buys)
 
-            if pair == "XCN/EUR":
-                buys = manual_onyx_injection(buys)
-            if pair == "LTC/EUR":
-                buys = manual_litecoin_injection(buys)
-            #TODO: Why just not pass only the number? And style in excel?
-            def extract_amount(series: pd.Series) -> float:
-                return series.str.extract(r"([\d.]+)").astype(float).sum()[0]
+            buy_volume = buys[TradeColumn.TRANSFERRED_VOLUME.value].sum()
+            sell_volume = sells[TradeColumn.TRANSFERRED_VOLUME.value].sum()
+            buy_total = buys[TradeColumn.TRANSACTION_PRICE.value].sum()
+            buy_fee = buys[TradeColumn.FEE.value].sum()
+            sell_total = sells[TradeColumn.TRANSACTION_PRICE.value].sum()
 
-            buy_volume = extract_amount(buys[TradeColumn.TRANSFERRED_VOLUME.value])
-            sell_volume = extract_amount(sells[TradeColumn.TRANSFERRED_VOLUME.value])
-            buy_total = extract_amount(buys[TradeColumn.TRANSACTION_PRICE.value])
-            buy_fee = extract_amount(buys[TradeColumn.FEE.value])
-            sell_total = extract_amount(sells[TradeColumn.TRANSACTION_PRICE.value])
             remaining_volume = buy_volume - sell_volume
+            cost = float(buy_total + buy_fee)
 
-            cost = buy_total + buy_fee
             current_value = round(remaining_volume * market_price, 4) if market_price else 0
             potential_value = round(buy_volume * market_price, 4) if market_price else 0
             total_value = current_value + sell_total
+
             realized_roi = ((total_value - cost) / cost) if cost > 0 else 0
             potential_roi = ((potential_value - cost) / cost) if cost > 0 else 0
 
@@ -161,6 +146,10 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
             sheet_name = pair.replace("/", "_")[:31]
             breakdown = generate_trade_report_sheet(snapshot)
+
+            if breakdown.empty:
+                breakdown = pd.DataFrame([{TradeColumn.UNIQUE_ID.value: "No trades available"}])
+
             breakdown.to_excel(writer, sheet_name=sheet_name, index=False)
 
         summary = generate_portfolio_summary(

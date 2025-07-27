@@ -1,19 +1,20 @@
-from python_kraken_trades.constants import HEADER_FILL_COLOR
+from python_kraken_trades.constants import ExcelStyling
 from python_kraken_trades.enums import TradeColumn
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from pathlib import Path
 
 def style_excel(output: Path) -> None:
-    from openpyxl import load_workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
-    from openpyxl.utils import get_column_letter
+
 
     wb = load_workbook(output)
     bold = Font(bold=True)
     center = Alignment(horizontal="center", vertical="center")
     left = Alignment(horizontal="left", vertical="center")
     right = Alignment(horizontal="right", vertical="center")
-    green_fill = PatternFill(start_color=HEADER_FILL_COLOR["positive"], fill_type="solid")
-    red_fill = PatternFill(start_color=HEADER_FILL_COLOR["negative"], fill_type="solid")
+    green_fill = PatternFill(start_color=ExcelStyling.HEADER_POSITIVE_FILL, fill_type="solid")
+    red_fill = PatternFill(start_color=ExcelStyling.HEADER_NEGATIVE_FILL, fill_type="solid")
 
     for sheet in wb.sheetnames:
         ws = wb[sheet]

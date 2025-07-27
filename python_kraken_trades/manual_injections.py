@@ -10,10 +10,10 @@ def manual_onyx_injection(buys: pd.DataFrame) -> pd.DataFrame:
         TradeColumn.PAIR: "XCN/EUR",
         TradeColumn.TRADE_TYPE: "Buy",
         TradeColumn.EXECUTION_TYPE: "Market",
-        TradeColumn.TRADE_PRICE: "0.1212 EUR",
-        TradeColumn.TRANSACTION_PRICE: "640.0 EUR",
-        TradeColumn.TRANSFERRED_VOLUME: "47349.9627 XCN",
-        TradeColumn.FEE: "30.0 EUR",
+        TradeColumn.TRADE_PRICE: 0.1212,
+        TradeColumn.TRANSACTION_PRICE: 640.0,
+        TradeColumn.TRANSFERRED_VOLUME: 47349.9627,
+        TradeColumn.FEE: 30.0,
         TradeColumn.CURRENCY: "EUR",
         TradeColumn.TOKEN: "XCN"
     }])
@@ -27,10 +27,10 @@ def manual_litecoin_injection(buys: pd.DataFrame) -> pd.DataFrame:
         TradeColumn.PAIR: "LTC/EUR",
         TradeColumn.TRADE_TYPE: "Buy",
         TradeColumn.EXECUTION_TYPE: "Market",
-        TradeColumn.TRADE_PRICE: "94.4 EUR",
-        TradeColumn.TRANSACTION_PRICE: "16.34 EUR",
-        TradeColumn.TRANSFERRED_VOLUME: "0.16568818 LTC",
-        TradeColumn.FEE: "0.0 EUR",
+        TradeColumn.TRADE_PRICE: 94.4,
+        TradeColumn.TRANSACTION_PRICE: 16.34,
+        TradeColumn.TRANSFERRED_VOLUME: 0.16568818,
+        TradeColumn.FEE: 0.0,
         TradeColumn.CURRENCY: "EUR",
         TradeColumn.TOKEN: "LTC"
     }])
