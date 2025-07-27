@@ -7,7 +7,7 @@ Automated setup & testing pipeline for Kraken trade reports.
 ### 1️⃣ Clone + Enter the Repo
 
 ```bash
-git clone git@github.com:FlokiPatris/KrakenTrades.git && cd KrakenTrades
+git clone https://github.com/FlokiPatris/KrakenTrades.git && cd KrakenTrades
 ```
 
 ### 2️⃣ Run the Setup Script
