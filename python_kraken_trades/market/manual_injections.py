@@ -1,4 +1,4 @@
-from enums import TradeColumn
+from python_kraken_trades.kraken_core.enums import TradeColumn
 import pandas as pd
 
 # === MANUAL INJECTIONS ===

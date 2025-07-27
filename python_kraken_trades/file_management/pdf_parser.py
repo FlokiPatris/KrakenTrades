@@ -1,5 +1,5 @@
-from constants import TradeRegex, FormatRules
-from enums import TradeColumn, RawColumn
+from python_kraken_trades.kraken_core.constants import TradeRegex, FormatRules
+from python_kraken_trades.kraken_core.enums import TradeColumn, RawColumn
 from pathlib import Path
 from typing import List
 import pandas as pd

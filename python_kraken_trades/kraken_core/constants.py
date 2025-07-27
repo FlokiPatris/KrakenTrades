@@ -10,7 +10,7 @@ class FileLocations:
     Replace hardcoded paths with environment variables or config loaders in production.
     """
     KRAKEN_TRADES_PDF: Path = Path(r"C:\Users\fkotr\Downloads\trades.pdf")  # TODO: move to .env
-    PARSED_TRADES_EXCEL: Path = Path("../kraken_trade_summary.xlsx")        # TODO: move to .env
+    PARSED_TRADES_EXCEL: Path = Path("../../kraken_trade_summary.xlsx")        # TODO: move to .env
 
 
 # === API Configuration ===

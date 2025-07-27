@@ -1,8 +1,8 @@
 import os
-from constants import FileLocations
-from python_kraken_trades.excel.excel_styler import style_excel
-from python_kraken_trades.excel.excel_writer import write_excel
-from pdf_parser import extract_kraken_trade_records_from_pdf, build_trade_dataframe
+from python_kraken_trades.kraken_core import FileLocations
+from python_kraken_trades.file_management.excel_styler import style_excel
+from python_kraken_trades.file_management.excel_writer import write_excel
+from python_kraken_trades.file_management.pdf_parser import extract_kraken_trade_records_from_pdf, build_trade_dataframe
 
 def main() -> None:
     extracted_pdf_records = extract_kraken_trade_records_from_pdf(FileLocations.KRAKEN_TRADES_PDF)
