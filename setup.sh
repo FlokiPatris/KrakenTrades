@@ -1,63 +1,95 @@
-set -euo pipefail
+#!/usr/bin/env bash
 
-# === CONFIG ===
-PYTHON_VERSION="3.10"
-ENV_FILE=".env"
-PYENV_ROOT="${HOME}/.pyenv"
+# Enable strict error handling (split for portability in Windows Git Bash)
+set -e
+set -u
+set -o pipefail
 
-echo "🚀 Starting KrakenTrades setup..."
+# === CONFIGURATION ===
+readonly PYTHON_VERSION="3.10"
+readonly ENV_FILE=".env"
+readonly PYENV_ROOT="${HOME}/.pyenv"
+readonly POETRY_INSTALL_URL="https://install.python-poetry.org"
+readonly LOG_PREFIX="[KrakenTrades Setup]"
 
-# === 1. Install pyenv + Python ===
-if ! command -v pyenv &>/dev/null; then
-    echo "🐍 Installing pyenv..."
-    curl https://pyenv.run | bash
+# === Logging Helpers ===
+log()    { echo "${LOG_PREFIX} $*"; }
+log_err() { echo "${LOG_PREFIX} ❌ $*" >&2; exit 1; }
 
-    export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
-else
-    echo "✅ pyenv already installed."
-fi
+# === Helper: Setup pyenv ===
+install_pyenv() {
+    if ! command -v pyenv &>/dev/null; then
+        log "Installing pyenv..."
+        curl https://pyenv.run | bash || log_err "pyenv installation failed"
+        export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+        eval "$(pyenv init -)"
+        eval "$(pyenv virtualenv-init -)"
+    else
+        log "pyenv already installed."
+    fi
+}
 
-if ! pyenv versions --bare | grep -q "$PYTHON_VERSION"; then
-    echo "📦 Installing Python $PYTHON_VERSION via pyenv..."
-    pyenv install "$PYTHON_VERSION"
-fi
+setup_python() {
+    if ! pyenv versions --bare | grep -q "${PYTHON_VERSION}"; then
+        log "Installing Python ${PYTHON_VERSION} via pyenv..."
+        pyenv install "${PYTHON_VERSION}" || log_err "Python install failed"
+    fi
+    pyenv global "${PYTHON_VERSION}"
+    log "Using Python version: $(python3 --version)"
+}
 
-pyenv global "$PYTHON_VERSION"
-echo "🧪 Using Python $(python3 --version)"
+# === Helper: Setup Poetry ===
+install_poetry() {
+    if ! command -v poetry &>/dev/null; then
+        log "Installing Poetry..."
+        curl -sSL "${POETRY_INSTALL_URL}" | python3 - || log_err "Poetry install failed"
+        export PATH="${HOME}/.local/bin:$PATH"
+    else
+        log "Poetry already installed."
+    fi
+}
 
-# === 2. Install Poetry ===
-if ! command -v poetry &>/dev/null; then
-    echo "📦 Installing Poetry..."
-    curl -sSL https://install.python-poetry.org | python3 -
-    export PATH="${HOME}/.local/bin:$PATH"
-else
-    echo "✅ Poetry is already installed."
-fi
+configure_poetry_env() {
+    log "Configuring Poetry to use Python ${PYTHON_VERSION}..."
+    poetry env use "$(pyenv which python)" || log_err "Poetry environment setup failed"
+}
 
-# === 3. Set Python for Poetry ===
-echo "🧪 Configuring Poetry to use Python $PYTHON_VERSION..."
-poetry env use "$(pyenv which python)"
+install_dependencies() {
+    log "Installing dependencies via Poetry..."
+    poetry install --no-root || log_err "Dependency installation failed"
+}
 
-# === 4. Install Dependencies ===
-echo "📦 Installing dependencies via Poetry..."
-poetry install --no-root || { echo "❌ Dependency install failed."; exit 1; }
+load_env_variables() {
+    if [ -f "${ENV_FILE}" ]; then
+        log "Loading environment variables from ${ENV_FILE}..."
+        export $(grep -v '^#' "${ENV_FILE}" | xargs)
+    else
+        log "No .env file found. Continuing without environment vars."
+    fi
+}
 
-# === 5. Load .env (Optional) ===
-if [ -f "$ENV_FILE" ]; then
-    echo "🧪 Loading env variables from $ENV_FILE..."
-    export $(grep -v '^#' "$ENV_FILE" | xargs)
-else
-    echo "ℹ️ No $ENV_FILE found. Continuing without env vars."
-fi
+run_main_script() {
+    if [ -f "main.py" ]; then
+        log "Executing main.py..."
+        poetry run python main.py || log_err "main.py execution failed"
+    else
+        log "No main.py found. Skipping execution."
+    fi
+}
 
-# === 6. Optional: Run Main Script ===
-if [ -f "main.py" ]; then
-    echo "🚀 Running main.py..."
-    poetry run python main.py
-else
-    echo "ℹ️ No main.py found. Setup complete."
-fi
+# === Orchestrator ===
+main() {
+    log "🚀 KrakenTrades setup started"
 
-echo "✅ KrakenTrades setup finished successfully!"
+    install_pyenv
+    setup_python
+    install_poetry
+    configure_poetry_env
+    install_dependencies
+    load_env_variables
+    run_main_script
+
+    log "✅ Setup finished successfully!"
+}
+
+main "$@"
