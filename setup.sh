@@ -27,17 +27,23 @@ apply_windows_curl_fix() {
 
 # === Install pyenv-win for Windows ===
 install_pyenv_win() {
+    # Add pyenv-win to PATH early
+    export PATH="${PYENV_HOME}/pyenv-win/bin:${PYENV_HOME}/pyenv-win/shims:$PATH"
+
     if command -v pyenv &>/dev/null; then
-        log "pyenv-win already installed."
+        log "pyenv-win is available."
         return
     fi
 
-    log "Installing pyenv-win..."
-    git clone https://github.com/pyenv-win/pyenv-win.git "${PYENV_HOME}" || log_err "Failed to clone pyenv-win"
+    if [ -d "${PYENV_HOME}/pyenv-win" ]; then
+        log "pyenv-win directory already exists — skipping clone"
+        return
+    fi
 
-    # Add to path for current session
-    export PATH="${PYENV_HOME}/pyenv-win/bin:${PYENV_HOME}/pyenv-win/shims:$PATH"
+    log "Cloning pyenv-win into ${PYENV_HOME}/pyenv-win..."
+    git clone https://github.com/pyenv-win/pyenv-win.git "${PYENV_HOME}/pyenv-win" || log_err "Failed to clone pyenv-win"
 }
+
 
 # === Setup Python with pyenv-win ===
 setup_python() {
