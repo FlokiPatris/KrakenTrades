@@ -1,5 +1,5 @@
-from python_kraken_trades.kraken_core.constants import KrakenAPI
-from python_kraken_trades.kraken_core import custom_logger
+from kraken_core.constants import KrakenAPI
+from kraken_core import custom_logger
 from typing import Optional
 import requests
 

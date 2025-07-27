@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Poetry
+poetry.lock
+.env
+*.env
+.cache/
+*.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# Docker
+*.db
+*.sqlite3
+*.pid
+*.seed
+*.swp
+
+# PyCharm
+.idea/
+.vscode/
+
+# Test coverage & reports
+htmlcov/
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
+test-results/
+junit.xml
+
+# System junk
+.DS_Store
+Thumbs.db

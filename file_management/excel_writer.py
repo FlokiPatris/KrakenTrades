@@ -1,7 +1,6 @@
-from python_kraken_trades.kraken_core.data_classes import MainSummaryMetrics, TradeBreakdownSnapshot
-from python_kraken_trades.market.manual_injections import manual_onyx_injection, manual_litecoin_injection
-from python_kraken_trades.market.market_data import fetch_market_price
-from python_kraken_trades.kraken_core import TradeColumn
+from kraken_core import MainSummaryMetrics, TradeBreakdownSnapshot, TradeColumn
+from market.manual_injections import manual_onyx_injection, manual_litecoin_injection
+from market.market_data import fetch_market_price
 from pathlib import Path
 import pandas as pd
 
