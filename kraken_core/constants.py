@@ -1,16 +1,20 @@
-from dataclasses import dataclass
-from pathlib import Path
 import re
+from pathlib import Path
+from dataclasses import dataclass
+from dotenv import load_dotenv
+import os
 
-# === File Locations ===
+# Load .env file
+load_dotenv()
+
 @dataclass(frozen=True)
 class FileLocations:
     """
     Centralized file path configuration.
-    Replace hardcoded paths with environment variables or config loaders in production.
+    Reads from environment variables defined in .env.
     """
-    KRAKEN_TRADES_PDF: Path = Path(r"C:\Users\fkotr\Downloads\trades.pdf")  # TODO: move to .env
-    PARSED_TRADES_EXCEL: Path = Path("../../kraken_trade_summary.xlsx")        # TODO: move to .env
+    KRAKEN_TRADES_PDF: Path = Path(os.getenv("KRAKEN_TRADES_PDF", "trades.pdf"))
+    PARSED_TRADES_EXCEL: Path = Path(os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx"))
 
 
 # === API Configuration ===

@@ -1,5 +1,4 @@
-from kraken_core.constants import KrakenAPI
-from kraken_core import custom_logger
+from kraken_core import KrakenAPI, custom_logger
 from typing import Optional
 import requests
 
