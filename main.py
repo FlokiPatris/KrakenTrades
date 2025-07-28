@@ -9,8 +9,8 @@ def main() -> None:
     write_excel(formatted_data_frames, FileLocations.PARSED_TRADES_EXCEL)
     style_excel(FileLocations.PARSED_TRADES_EXCEL)
 
-    # ✅ Auto-open the Excel file (Windows only)
-    os.startfile(FileLocations.PARSED_TRADES_EXCEL)
+    # # ✅ Auto-open the Excel file (Windows only)
+    # os.startfile(FileLocations.PARSED_TRADES_EXCEL)
 
 if __name__ == "__main__":
     main()
