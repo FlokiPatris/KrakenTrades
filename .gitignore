@@ -39,6 +39,8 @@ coverage.xml
 nosetests.xml
 test-results/
 junit.xml
+trades_from_kraken.pdf
+kraken_parsed_trades.xlsx
 
 # System junk
 .DS_Store

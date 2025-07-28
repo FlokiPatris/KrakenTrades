@@ -1,21 +1,12 @@
-version: '3.8'
+version: '3.9'  # Docker Compose specification version (not Python or image version)
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  kraken:  # Service name — refers to your Python app container
+    build: .  # Builds the image from the Dockerfile in current directory
+    container_name: krakentrades  # Assigns a custom name to the running container
+    working_dir: /app  # Sets the working directory inside the container
     volumes:
-      - .:/app
-    env_file:
-      - .env
-
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    volumes:
-      - .:/app
-    env_file:
-      - .env
-    command: pytest --tb=short -q
+      - .:/app  # Mounts your local project folder into the container for live access
+    environment:
+      - PYTHONUNBUFFERED=1  # Ensures real-time output by disabling Python's stdout buffering
+    tty: true  # Allocates a pseudo-TTY for interactive terminal usage (useful for logs/debugging)

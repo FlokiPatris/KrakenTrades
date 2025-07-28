@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# === Strict mode for reliability ===
 set -euo pipefail
 
 # === Configuration ===
@@ -14,6 +13,16 @@ log()     { echo "${LOG_PREFIX} $*"; }
 log_warn(){ echo "${LOG_PREFIX} ⚠️ $*"; }
 log_err() { echo "${LOG_PREFIX} ❌ $*" >&2; exit 1; }
 
+# === Install Python build dependencies ===
+install_build_dependencies() {
+    log "Installing Python build dependencies..."
+    sudo apt update && sudo apt install -y \
+        build-essential libssl-dev zlib1g-dev libbz2-dev \
+        libreadline-dev libsqlite3-dev curl libncursesw5-dev \
+        xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+        || log_err "Failed to install build dependencies"
+}
+
 # === Install pyenv ===
 install_pyenv() {
     if command -v pyenv &>/dev/null; then
@@ -25,7 +34,6 @@ install_pyenv() {
     curl https://pyenv.run | bash
 
     local BASHRC="${HOME}/.bashrc"
-
     if ! grep -q 'pyenv init' "$BASHRC"; then
         cat <<EOF >> "$BASHRC"
 
@@ -79,7 +87,7 @@ install_dependencies() {
     poetry install --no-root || log_err "Dependency installation failed"
 }
 
-# === Load environment variables ===
+# === Load .env file ===
 load_env_variables() {
     if [ ! -f "${ENV_FILE}" ]; then
         log_warn "No ${ENV_FILE} found. Skipping env load."
@@ -90,7 +98,7 @@ load_env_variables() {
     export $(grep -v '^#' "${ENV_FILE}" | xargs)
 }
 
-# === Optionally run main.py ===
+# === Run main.py ===
 run_main_script() {
     if [ ! -f "main.py" ]; then
         log_warn "No main.py found. Skipping execution."
@@ -104,6 +112,7 @@ run_main_script() {
 # === Entrypoint ===
 main() {
     log "🚀 KrakenTrades setup started"
+    install_build_dependencies
     install_pyenv
     setup_python
     install_poetry
