@@ -51,11 +51,15 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 📦 Install Poetry
-        uses: abatilo/actions-poetry@v2
+      - name: 📦 Install Poetry (pinned version)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "poetry==1.8.3"
+          poetry --version
 
       - name: 📤 Export Dependencies
         run: poetry export -f requirements.txt --output ${{ env.DEP_FILE }} --without-hashes
+
 
       - name: 🧹 Lint Python Code
         run: |
