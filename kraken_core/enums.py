@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TradeColumn(str, Enum):
     UNIQUE_ID = "Unique ID"
     DATE = "Date"
@@ -12,6 +13,7 @@ class TradeColumn(str, Enum):
     FEE = "Fee"
     CURRENCY = "Currency"
     TOKEN = "Token"
+
 
 class RawColumn(str, Enum):
     UID = "uid"

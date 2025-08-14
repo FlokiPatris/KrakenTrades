@@ -4,6 +4,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+
 def style_excel(output: Path) -> None:
     """
     Apply styling to the Excel workbook at the given path.
@@ -17,8 +18,12 @@ def style_excel(output: Path) -> None:
     center = Alignment(horizontal="center", vertical="center")
     left = Alignment(horizontal="left", vertical="center")
     right = Alignment(horizontal="right", vertical="center")
-    green_fill = PatternFill(start_color=ExcelStyling.HEADER_POSITIVE_FILL, fill_type="solid")
-    red_fill = PatternFill(start_color=ExcelStyling.HEADER_NEGATIVE_FILL, fill_type="solid")
+    green_fill = PatternFill(
+        start_color=ExcelStyling.HEADER_POSITIVE_FILL, fill_type="solid"
+    )
+    red_fill = PatternFill(
+        start_color=ExcelStyling.HEADER_NEGATIVE_FILL, fill_type="solid"
+    )
 
     # === General sheet formatting ===
     for sheet_name in wb.sheetnames:
@@ -28,7 +33,9 @@ def style_excel(output: Path) -> None:
         # Auto-adjust column widths
         for col in ws.columns:
             max_width = max(len(str(cell.value) or "") for cell in col) + 4
-            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max_width, 40)
+            ws.column_dimensions[get_column_letter(col[0].column)].width = min(
+                max_width, 40
+            )
 
         # Style header row
         for cell in ws[1]:
@@ -46,7 +53,9 @@ def style_excel(output: Path) -> None:
 
             if str(row[0].value) == "Result":
                 row[1].font = bold
-                row[1].fill = green_fill if "up" in str(row[1].value).lower() else red_fill
+                row[1].fill = (
+                    green_fill if "up" in str(row[1].value).lower() else red_fill
+                )
 
     # === Asset ROI sheet styling ===
     if "Asset ROI" in wb.sheetnames:
@@ -59,10 +68,14 @@ def style_excel(output: Path) -> None:
 
         ws.delete_rows(2, ws.max_row)  # Clear existing data
 
-        def insert_section(title: str, fill: PatternFill, row_list: list, start_row: int):
+        def insert_section(
+            title: str, fill: PatternFill, row_list: list, start_row: int
+        ):
             custom_logger.info(f"📌 Inserting section: {title}")
             ws.insert_rows(start_row)
-            ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=8)
+            ws.merge_cells(
+                start_row=start_row, start_column=1, end_row=start_row, end_column=8
+            )
 
             title_cell = ws.cell(row=start_row, column=1)
             title_cell.value = title
@@ -79,7 +92,9 @@ def style_excel(output: Path) -> None:
         if pos_rows:
             insert_section("🟢 Positive ROI Assets 🟢", green_fill, pos_rows, 2)
         if neg_rows:
-            insert_section("🔻 Negative ROI Assets 🔻", red_fill, neg_rows, 3 + len(pos_rows))
+            insert_section(
+                "🔻 Negative ROI Assets 🔻", red_fill, neg_rows, 3 + len(pos_rows)
+            )
 
     # === Individual token sheet styling ===
     left_cols = {
@@ -87,7 +102,7 @@ def style_excel(output: Path) -> None:
         TradeColumn.DATE.value,
         TradeColumn.PAIR.value,
         TradeColumn.TRADE_TYPE.value,
-        TradeColumn.EXECUTION_TYPE.value
+        TradeColumn.EXECUTION_TYPE.value,
     }
 
     for sheet_name in wb.sheetnames:
@@ -100,12 +115,18 @@ def style_excel(output: Path) -> None:
         col_names = [cell.value for cell in ws[1]]
         for row in ws.iter_rows(min_row=2):
             for col_idx, cell in enumerate(row, start=1):
-                col_name = col_names[col_idx - 1] if col_idx - 1 < len(col_names) else ""
+                col_name = (
+                    col_names[col_idx - 1] if col_idx - 1 < len(col_names) else ""
+                )
                 cell.alignment = left if col_name in left_cols else right
 
     # === Sheet ordering ===
     custom_logger.info("🔀 Reordering sheets")
-    wb._sheets.sort(key=lambda s: 0 if s.title == "Portfolio" else (1 if s.title == "Asset ROI" else 2))
+    wb._sheets.sort(
+        key=lambda s: 0
+        if s.title == "Portfolio"
+        else (1 if s.title == "Asset ROI" else 2)
+    )
 
     # Save workbook
     wb.save(output)

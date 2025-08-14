@@ -4,6 +4,7 @@ from typing import List
 import pandas as pd
 import pdfplumber
 
+
 # === PDF Trade Extractor ===
 def extract_kraken_trade_records_from_pdf(path: Path) -> List[dict]:
     """
@@ -25,7 +26,9 @@ def extract_kraken_trade_records_from_pdf(path: Path) -> List[dict]:
                     date_line = lines[i].strip()
                     trade_line = lines[i + 1].strip()
 
-                    if TradeRegex.DATE.match(date_line) and not trade_line.startswith("Page"):
+                    if TradeRegex.DATE.match(date_line) and not trade_line.startswith(
+                        "Page"
+                    ):
                         merged = f"{date_line} {trade_line}"
                         match = TradeRegex.TRADE.match(merged)
 
@@ -60,7 +63,9 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
     df = pd.DataFrame(records)
 
     # Format date
-    df[TradeColumn.DATE.value] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%d/%m/%Y")
+    df[TradeColumn.DATE.value] = pd.to_datetime(
+        df["date"], errors="coerce"
+    ).dt.strftime("%d/%m/%Y")
     custom_logger.debug("Formatted trade dates")
 
     # Convert numeric columns
@@ -68,11 +73,13 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
         RawColumn.PRICE.value,
         RawColumn.COST.value,
         RawColumn.VOLUME.value,
-        RawColumn.FEE.value
+        RawColumn.FEE.value,
     ]
 
     for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce").round(FormatRules.DECIMAL_PLACES_10)
+        df[col] = pd.to_numeric(df[col], errors="coerce").round(
+            FormatRules.DECIMAL_PLACES_10
+        )
         custom_logger.debug(f"Converted column to numeric: {col}")
 
     # Rename columns using RawColumn → TradeColumn mapping
@@ -84,15 +91,19 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
         RawColumn.PRICE.value: TradeColumn.TRADE_PRICE.value,
         RawColumn.COST.value: TradeColumn.TRANSACTION_PRICE.value,
         RawColumn.VOLUME.value: TradeColumn.TRANSFERRED_VOLUME.value,
-        RawColumn.FEE.value: TradeColumn.FEE.value
+        RawColumn.FEE.value: TradeColumn.FEE.value,
     }
 
     df = df.rename(columns=rename_map)
     custom_logger.debug("Renamed columns to standardized format")
 
     # Extract currency and token from pair
-    df[TradeColumn.CURRENCY.value] = df[TradeColumn.PAIR.value].str.extract(TradeRegex.PAIR_CURRENCY)
-    df[TradeColumn.TOKEN.value] = df[TradeColumn.PAIR.value].str.extract(TradeRegex.PAIR_TOKEN)
+    df[TradeColumn.CURRENCY.value] = df[TradeColumn.PAIR.value].str.extract(
+        TradeRegex.PAIR_CURRENCY
+    )
+    df[TradeColumn.TOKEN.value] = df[TradeColumn.PAIR.value].str.extract(
+        TradeRegex.PAIR_TOKEN
+    )
     custom_logger.debug("Extracted currency and token from trading pair")
 
     # Final column order

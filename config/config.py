@@ -1,5 +1,6 @@
 from pydantic import BaseSettings
 
+
 class KrakenExportConfig(BaseSettings):
     api_key: str
     api_secret: str

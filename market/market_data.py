@@ -2,6 +2,7 @@ from kraken_core import KrakenAPI, custom_logger
 from typing import Optional
 import requests
 
+
 def fetch_market_price(pair: str) -> Optional[float]:
     """
     Fetches the current market price for a given trading pair from Kraken API.
@@ -17,7 +18,9 @@ def fetch_market_price(pair: str) -> Optional[float]:
             timeout=KrakenAPI.TIMEOUT,
         )
         response.raise_for_status()
-        custom_logger.debug(f"Raw response: {response.text[:200]}...")  # Optional: truncate for readability
+        custom_logger.debug(
+            f"Raw response: {response.text[:200]}..."
+        )  # Optional: truncate for readability
 
         data = next(iter(response.json().get("result", {}).values()), {})
         price = float(data.get("c", [None])[0])
@@ -29,6 +32,8 @@ def fetch_market_price(pair: str) -> Optional[float]:
     except (ValueError, TypeError) as parse_err:
         custom_logger.warning(f"Parsing error for {pair} response: {parse_err}")
     except Exception as e:
-        custom_logger.exception(f"Unexpected error while fetching market price for {pair}")
+        custom_logger.exception(
+            f"Unexpected error while fetching market price for {pair}"
+        )
 
     return None

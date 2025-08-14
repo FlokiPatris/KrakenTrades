@@ -7,14 +7,18 @@ import os
 # Load .env file
 load_dotenv()
 
+
 @dataclass(frozen=True)
 class FileLocations:
     """
     Centralized file path configuration.
     Reads from environment variables defined in .env.
     """
+
     KRAKEN_TRADES_PDF: Path = Path(os.getenv("KRAKEN_TRADES_PDF", "trades.pdf"))
-    PARSED_TRADES_EXCEL: Path = Path(os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx"))
+    PARSED_TRADES_EXCEL: Path = Path(
+        os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx")
+    )
 
 
 # === API Configuration ===
@@ -24,6 +28,7 @@ class KrakenAPI:
     Kraken API configuration.
     Suitable for use in CI/CD and Docker environments.
     """
+
     URL: str = "https://api.kraken.com/0/public/Ticker"
     TIMEOUT: int = 10  # seconds
 
@@ -33,6 +38,7 @@ class TradeRegex:
     """
     Precompiled regex patterns for parsing trade data.
     """
+
     DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
     TRADE = re.compile(
@@ -48,9 +54,9 @@ class TradeRegex:
         (?P<fee>\d+\.\d+)\s+
         (?P<margin>\d+\.\d+)$
         """,
-        re.VERBOSE
+        re.VERBOSE,
     )
-    #TODO why no compile here?
+    # TODO why no compile here?
     PAIR_CURRENCY = r"/([A-Z]+)"
     PAIR_TOKEN = r"^([A-Z0-9]+)/"
 
@@ -62,6 +68,7 @@ class ExcelStyling:
     Excel styling constants for header formatting.
     These are used with openpyxl's PatternFill and Font.
     """
+
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green
     HEADER_NEGATIVE_FILL: str = "FFC7CE"  # Light red
 
@@ -72,6 +79,7 @@ class FormatRules:
     """
     Formatting configuration for numeric precision.
     """
+
     DECIMAL_PLACES_10: int = 10
     DECIMAL_PLACES_2: int = 2
     DECIMAL_PLACES_8: int = 8

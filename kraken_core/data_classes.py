@@ -19,6 +19,7 @@ class TradeRecord:
     currency: str
     token: str
 
+
 @dataclass
 class MainSummaryMetrics:
     token: str
@@ -29,6 +30,7 @@ class MainSummaryMetrics:
     total_value: float
     roi: float  # Realized ROI %
     potential_roi: float  # ROI if fully sold now %
+
 
 @dataclass
 class MarketSnapshot:
@@ -45,6 +47,7 @@ class MarketSnapshot:
     total_value: float = 0.0
     realized_roi: float = 0.0
     potential_roi: float = 0.0
+
 
 @dataclass
 class TradeBreakdownSnapshot:

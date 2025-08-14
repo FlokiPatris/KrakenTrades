@@ -1,4 +1,10 @@
-from kraken_core import MainSummaryMetrics, TradeBreakdownSnapshot, TradeColumn, FormatRules, custom_logger
+from kraken_core import (
+    MainSummaryMetrics,
+    TradeBreakdownSnapshot,
+    TradeColumn,
+    FormatRules,
+    custom_logger,
+)
 from market import manual_onyx_injection, manual_litecoin_injection, fetch_market_price
 from pathlib import Path
 import pandas as pd
@@ -27,23 +33,42 @@ def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFram
         pd.DataFrame([{TradeColumn.UNIQUE_ID.value: "Sells"}]),
         snapshot.sells,
         pd.DataFrame([{TradeColumn.UNIQUE_ID.value: ""}]),
-        generate_trade_report_block("IF ALL SOLD NOW:", {
-            TradeColumn.TRADE_PRICE.value: f"{snapshot.market_price} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}",
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.buy_volume} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.potential_value} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
-        }),
-        generate_trade_report_block("ALREADY SOLD:", {
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.sell_volume} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total} {snapshot.currency}"
-        }),
-        generate_trade_report_block("IF REST SOLD NOW:", {
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
-        })
+        generate_trade_report_block(
+            "IF ALL SOLD NOW:",
+            {
+                TradeColumn.TRADE_PRICE.value: f"{snapshot.market_price} {snapshot.currency}"
+                if snapshot.market_price
+                else f"N/A {snapshot.currency}",
+                TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.buy_volume} {snapshot.token}",
+                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.potential_value} {snapshot.currency}"
+                if snapshot.market_price
+                else f"N/A {snapshot.currency}",
+            },
+        ),
+        generate_trade_report_block(
+            "ALREADY SOLD:",
+            {
+                TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.sell_volume} {snapshot.token}",
+                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total} {snapshot.currency}",
+            },
+        ),
+        generate_trade_report_block(
+            "IF REST SOLD NOW:",
+            {
+                TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume} {snapshot.token}",
+                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value} {snapshot.currency}"
+                if snapshot.market_price
+                else f"N/A {snapshot.currency}",
+            },
+        ),
     ]
 
     report_df = pd.concat(summary_blocks, ignore_index=True)
-    report_df.drop(columns=[TradeColumn.CURRENCY.value, TradeColumn.TOKEN.value], errors="ignore", inplace=True)
+    report_df.drop(
+        columns=[TradeColumn.CURRENCY.value, TradeColumn.TOKEN.value],
+        errors="ignore",
+        inplace=True,
+    )
 
     return report_df
 
@@ -53,7 +78,7 @@ def generate_portfolio_summary(
     total_buys: float,
     total_sells: float,
     unrealized_value: float,
-    total_all_sold_now_value: float
+    total_all_sold_now_value: float,
 ) -> pd.DataFrame:
     """
     Summarizes the overall portfolio performance.
@@ -69,29 +94,42 @@ def generate_portfolio_summary(
         ["Unrealized Value (if rest sold)", round(unrealized_value)],
         ["If All Bought Sold Now (market value)", round(total_all_sold_now_value)],
         ["Net Position", net_result],
-        ["You Could Be Up To", f"{'🟢 You could be up to' if potential_profit >= 0 else '🔻 You could be down by'} €{abs(potential_profit)}"],
-        ["Result", f"{'🟢 You’re up' if net_result >= 0 else '🔻 You’re down'} €{abs(net_result)}"]
+        [
+            "You Could Be Up To",
+            f"{'🟢 You could be up to' if potential_profit >= 0 else '🔻 You could be down by'} €{abs(potential_profit)}",
+        ],
+        [
+            "Result",
+            f"{'🟢 You’re up' if net_result >= 0 else '🔻 You’re down'} €{abs(net_result)}",
+        ],
     ]
 
     return pd.DataFrame(summary_data, columns=["Metric", "EUR Value"])
 
 
 # === ROI Exporter ===
-def export_roi_table(roi_records: list[MainSummaryMetrics], writer: pd.ExcelWriter) -> None:
+def export_roi_table(
+    roi_records: list[MainSummaryMetrics], writer: pd.ExcelWriter
+) -> None:
     """
     Writes the ROI summary table to the Excel writer.
     """
     custom_logger.info("Exporting ROI table")
 
-    roi_df = pd.DataFrame([r.__dict__ for r in roi_records]).sort_values("roi", ascending=True)
-    roi_df.rename(columns={
-        "total_cost": "Total Cost (€)",
-        "realized_sells": "Realized Sells (€)",
-        "unrealized_value": "Unrealized Value (€)",
-        "total_value": "Total Value (€)",
-        "roi": "ROI (%)",
-        "potential_roi": "Potential ROI (%)"
-    }, inplace=True)
+    roi_df = pd.DataFrame([r.__dict__ for r in roi_records]).sort_values(
+        "roi", ascending=True
+    )
+    roi_df.rename(
+        columns={
+            "total_cost": "Total Cost (€)",
+            "realized_sells": "Realized Sells (€)",
+            "unrealized_value": "Unrealized Value (€)",
+            "total_value": "Total Value (€)",
+            "roi": "ROI (%)",
+            "potential_roi": "Potential ROI (%)",
+        },
+        inplace=True,
+    )
 
     roi_df.to_excel(writer, sheet_name="Asset ROI", index=False)
 
@@ -157,16 +195,20 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             unrealized_value += current_value
             total_all_sold_now_value += potential_value
 
-            roi_records.append(MainSummaryMetrics(
-                token=token,
-                pair=pair,
-                total_cost=cost,
-                realized_sells=sell_total,
-                unrealized_value=current_value,
-                total_value=total_value,
-                roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_8),
-                potential_roi=round(potential_roi * 100, FormatRules.DECIMAL_PLACES_8)
-            ))
+            roi_records.append(
+                MainSummaryMetrics(
+                    token=token,
+                    pair=pair,
+                    total_cost=cost,
+                    realized_sells=sell_total,
+                    unrealized_value=current_value,
+                    total_value=total_value,
+                    roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_8),
+                    potential_roi=round(
+                        potential_roi * 100, FormatRules.DECIMAL_PLACES_8
+                    ),
+                )
+            )
 
             snapshot = TradeBreakdownSnapshot(
                 pair=pair,
@@ -180,14 +222,16 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
                 remaining_volume=remaining_volume,
                 potential_value=potential_value,
                 sell_total=sell_total,
-                current_value=current_value
+                current_value=current_value,
             )
 
             sheet_name = pair.replace("/", "_")[:31]
             breakdown = generate_trade_report_sheet(snapshot)
 
             if breakdown.empty:
-                breakdown = pd.DataFrame([{TradeColumn.UNIQUE_ID.value: "No trades available"}])
+                breakdown = pd.DataFrame(
+                    [{TradeColumn.UNIQUE_ID.value: "No trades available"}]
+                )
 
             breakdown.to_excel(writer, sheet_name=sheet_name, index=False)
 
@@ -196,7 +240,7 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             total_buys=total_buys,
             total_sells=total_sells,
             unrealized_value=unrealized_value,
-            total_all_sold_now_value=total_all_sold_now_value
+            total_all_sold_now_value=total_all_sold_now_value,
         )
         summary.to_excel(writer, sheet_name="Portfolio", index=False)
 
