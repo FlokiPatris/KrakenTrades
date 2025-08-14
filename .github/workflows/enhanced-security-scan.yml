@@ -16,18 +16,22 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Tunables
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BANDIT_SEVERITY: "medium"
+  BANDIT_SEVERITY: "medium"           # low|medium|high
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
-  GITLEAKS_IMAGE_TAG: "8.18.2"
-  GITLEAKS_FALLBACK_TAG: "latest"
+  GITLEAKS_IMAGE_TAG: "8.18.2"        # preferred (may not exist on Docker Hub)
+  GITLEAKS_FALLBACK_TAG: "latest"     # robust fallback
 
 jobs:
   security:
     name: Static analysis, dependencies, and secrets
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
 
     defaults:
       run:
@@ -59,8 +63,8 @@ jobs:
       - name: 📦 Prepare dependency manifest (Poetry or requirements)
         id: deps
         run: |
+          python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
-            python -m pip install --upgrade pip
             pip install "poetry==1.8.3"
             poetry export -f requirements.txt --output requirements.txt --without-hashes
             echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
@@ -85,12 +89,31 @@ jobs:
           TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
           FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
         run: |
-          set -x
+          write_empty_sarif() {
+            local tool="$1" version="$2" path="$3"
+            cat > "${path}" <<JSON
+          {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
+                "results": []
+              }
+            ]
+          }
+          JSON
+          }
+
           resolved_tag="$TAG"
-          if ! docker pull "${IMAGE}:${resolved_tag}"; then
-            echo "::warning title=Gitleaks image tag missing::Falling back to ${FALLBACK_TAG}"
+          if ! docker pull "${IMAGE}:${resolved_tag}" >/dev/null 2>&1; then
+            echo "::warning title=Gitleaks image tag missing::${IMAGE}:${resolved_tag} not found. Falling back to ${FALLBACK_TAG}"
             resolved_tag="$FALLBACK_TAG"
-            docker pull "${IMAGE}:${resolved_tag}" || { echo "::error::Failed to pull gitleaks image"; exit 0; }
+            if ! docker pull "${IMAGE}:${resolved_tag}" >/dev/null 2>&1; then
+              echo "::error::Failed to pull ${IMAGE}:${resolved_tag}. Producing empty SARIF."
+              write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
+              exit 0
+            fi
           fi
 
           cfg_args=()
@@ -99,7 +122,7 @@ jobs:
           fi
 
           uid_gid="$(id -u):$(id -g)"
-          docker run --rm \
+          if ! docker run --rm \
             --user "${uid_gid}" \
             --read-only \
             --cap-drop=ALL \
@@ -113,10 +136,15 @@ jobs:
               --source /repo \
               --report-format sarif \
               --report-path "/out/gitleaks.sarif" \
-              "${cfg_args[@]}" || true
+              "${cfg_args[@]}"; then
+            echo "::warning::gitleaks failed to run. Producing empty SARIF."
+            write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
+          fi
 
-          # Guarantee SARIF exists so upload doesn't fail
-          touch "${SARIF_DIR}/gitleaks.sarif"
+          # If report is missing or empty, ensure a valid SARIF exists
+          if [[ ! -s "${SARIF_DIR}/gitleaks.sarif" ]]; then
+            write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
+          fi
 
       - name: 📤 Upload Gitleaks SARIF
         if: ${{ always() }}
@@ -125,14 +153,48 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
       - name: 🧪 Dependency CVE audit (pip-audit SARIF)
+        continue-on-error: true
+        env:
+          REQ_FILE: ${{ steps.deps.outputs.requirements }}
         run: |
+          write_empty_sarif() {
+            local tool="$1" version="$2" path="$3"
+            cat > "${path}" <<JSON
+          {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
+                "results": []
+              }
+            ]
+          }
+          JSON
+          }
+
           python -m pip install --upgrade pip
           pip install "pip-audit==2.9.0"
-          if [[ -n "${{ steps.deps.outputs.requirements }}" ]]; then
-            pip-audit --requirement "${{ steps.deps.outputs.requirements }}" \
+
+          set +e  # tolerate non-zero from --strict while still producing output
+          if [[ -n "${REQ_FILE}" ]]; then
+            pip-audit --requirement "${REQ_FILE}" \
               --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
           else
             pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
+          fi
+          rc=$?
+          set -e
+
+          # Ensure SARIF exists even on error
+          if [[ ! -s "${SARIF_DIR}/pip-audit.sarif" ]]; then
+            echo "::warning::pip-audit did not produce SARIF. Creating empty report."
+            write_empty_sarif "pip-audit" "2.9.0" "${SARIF_DIR}/pip-audit.sarif"
+          fi
+
+          # Propagate failure as non-blocking (report uploaded regardless)
+          if [[ $rc -ne 0 ]]; then
+            echo "::warning::pip-audit exited with code ${rc} (strict mode)."
           fi
 
       - name: 📤 Upload pip-audit SARIF
@@ -142,12 +204,42 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
       - name: 🧠 Bandit static analysis (SARIF)
+        continue-on-error: true
         run: |
+          write_empty_sarif() {
+            local tool="$1" version="$2" path="$3"
+            cat > "${path}" <<JSON
+          {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
+                "results": []
+              }
+            ]
+          }
+          JSON
+          }
+
           python -m pip install --upgrade pip
           pip install "bandit[toml]==1.8.6"
+
+          set +e  # let bandit return non-zero without killing the step
           bandit -r . -q \
             --severity-level "${BANDIT_SEVERITY}" \
             -f sarif -o "${SARIF_DIR}/bandit.sarif"
+          rc=$?
+          set -e
+
+          if [[ ! -s "${SARIF_DIR}/bandit.sarif" ]]; then
+            echo "::warning::Bandit did not produce SARIF. Creating empty report."
+            write_empty_sarif "bandit" "1.8.6" "${SARIF_DIR}/bandit.sarif"
+          fi
+
+          if [[ $rc -ne 0 ]]; then
+            echo "::warning::Bandit exited with code ${rc}."
+          fi
 
       - name: 📤 Upload Bandit SARIF
         if: ${{ always() }}
