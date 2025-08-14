@@ -1,0 +1,24 @@
+# Run: pip install pre-commit && pre-commit install
+# Then format everything once: pre-commit run --all-files
+
+default_language_version:
+  python: python3
+
+exclude: >
+  (?x)^(
+    .venv/|
+    venv/|
+    env/|
+    build/|
+    dist/|
+    .mypy_cache/|
+    .pytest_cache/|
+    node_modules/
+  )
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: 23.9.1    # You can bump this to the latest stable version if you like
+    hooks:
+      - id: black
+        language_version: python3.10
