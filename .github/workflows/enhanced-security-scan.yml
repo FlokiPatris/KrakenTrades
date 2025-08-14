@@ -7,18 +7,17 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
-# Minimal permissions for least privilege
+# Least-privilege permissions
 permissions:
   contents: read
   security-events: write
 
 env:
-  # ---- Configurable constants (no magic values) ----
+  # Tunables (no magic constants)
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BANDIT_SEVERITY: "medium"   # low|medium|high - adjust to your tolerance
-  GITLEAKS_VERSION: "v8.18.2" # pinned for reproducibility
-  # If you keep a custom gitleaks.toml at repo root, it will be auto-used
+  BANDIT_SEVERITY: "medium"     # low|medium|high
+  GITLEAKS_IMAGE_TAG: "8.18.2"  # pinned for reproducibility
 
 jobs:
   security:
@@ -32,20 +31,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🔒 Validate environment and token
+      - name: 🔒 Validate environment and prepare artifacts dir
         shell: bash
         run: |
           set -euo pipefail
-          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_VERSION)
+          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_IMAGE_TAG)
           for key in "${required_vars[@]}"; do
             if [[ -z "${!key:-}" ]]; then
               echo "::error::$key is not set"; exit 1
             fi
           done
-          # Ensure GitHub token is present for SARIF uploads (not echoed)
-          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-            echo "::warning::GITHUB_TOKEN not set explicitly; using default token from Actions."
-          fi
           mkdir -p "$SARIF_DIR"
           chmod 700 "$SARIF_DIR"
 
@@ -82,20 +77,26 @@ jobs:
           black --check .
           flake8 .
 
-      - name: 🔐 Gitleaks secrets scan (SARIF)
-        # Official action avoids brittle curl URLs and handles release assets
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          version: ${{ env.GITLEAKS_VERSION }}
-          args: >-
-            detect
-            --no-banner
-            --redact
-            --report-format sarif
-            --report-path ${{ env.SARIF_DIR }}/gitleaks.sarif
-            --source .
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🔐 Gitleaks secrets scan (Docker, SARIF)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "zricethezav/gitleaks:${GITLEAKS_IMAGE_TAG}"
+          # Conditionally use repo config if present
+          CFG_ARGS=()
+          if [[ -f .gitleaks.toml ]]; then
+            CFG_ARGS+=(--config "/repo/.gitleaks.toml")
+          fi
+          docker run --rm \
+            -v "$PWD:/repo:ro" \
+            -w /repo \
+            "zricethezav/gitleaks:${GITLEAKS_IMAGE_TAG}" detect \
+              --no-banner \
+              --redact \
+              --source /repo \
+              --report-format sarif \
+              --report-path "/repo/${SARIF_DIR}/gitleaks.sarif" \
+              "${CFG_ARGS[@]}"
 
       - name: 📤 Upload Gitleaks SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -107,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install "pip-audit==2.7.3"
+          pip install "pip-audit==2.9.0"
           if [[ -n "${{ steps.deps.outputs.requirements }}" ]]; then
             pip-audit --requirement "${{ steps.deps.outputs.requirements }}" \
               --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
@@ -124,11 +125,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pip install "bandit[toml]==1.7.10"
-          # -q reduces noisy logs; we still fail via exit code
-          bandit -r . -q -ll -s B101 \
-            -f sarif -o "${SARIF_DIR}/bandit.sarif" \
-            --severity-level "${BANDIT_SEVERITY}"
+          pip install "bandit[toml]==1.8.6"
+          bandit -r . -q \
+            --severity-level "${BANDIT_SEVERITY}" \
+            -f sarif -o "${SARIF_DIR}/bandit.sarif" || exit 1
 
       - name: 📤 Upload Bandit SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -140,7 +140,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Remove any leftover archives or caches we created
-          find . -maxdepth 2 -name "*.tar" -o -name "*.tar.gz" -o -name "*.zip" | xargs -r shred -u
-          # Keep SARIF only for upload; runner is ephemeral, but we restrict perms
+          # Shred any archives if created by future steps; keep SARIF for upload
+          find . -maxdepth 2 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.zip" \) -print0 | xargs -0 -r rm -f
           chmod -R go-rwx "${SARIF_DIR}" || true
