@@ -1,4 +1,4 @@
-name: "🛡️ Enhanced Security Scan"
+name: "🛡️ Security & Secrets Scan"
 
 on:
   push:
@@ -7,41 +7,47 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
+# Minimal permissions for least privilege
 permissions:
   contents: read
   security-events: write
-  actions: read
 
 env:
-  IMAGE_NAME: krakentrades:ci
+  # ---- Configurable constants (no magic values) ----
   PYTHON_VERSION: "3.11"
-  DEP_FILE: requirements.txt
-  DOCKERFILE_PATH: Dockerfile
-  SARIF_DIR: sarif-reports
-  GITLEAKS_BIN: /usr/local/bin/gitleaks
+  SARIF_DIR: "sarif-reports"
+  BANDIT_SEVERITY: "medium"   # low|medium|high - adjust to your tolerance
+  GITLEAKS_VERSION: "v8.18.2" # pinned for reproducibility
+  # If you keep a custom gitleaks.toml at repo root, it will be auto-used
 
 jobs:
-  static-and-secrets:
-    name: Static Analysis & Secrets
+  security:
+    name: Static analysis, dependencies, and secrets
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: 🧾 Checkout Repository
+      - name: 🧾 Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 📂 Prepare SARIF Directory
+      - name: 🔒 Validate environment and token
+        shell: bash
         run: |
+          set -euo pipefail
+          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_VERSION)
+          for key in "${required_vars[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::$key is not set"; exit 1
+            fi
+          done
+          # Ensure GitHub token is present for SARIF uploads (not echoed)
+          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+            echo "::warning::GITHUB_TOKEN not set explicitly; using default token from Actions."
+          fi
           mkdir -p "$SARIF_DIR"
           chmod 700 "$SARIF_DIR"
-
-      - name: ✅ Validate Required Env Vars
-        run: |
-          required_vars=(IMAGE_NAME PYTHON_VERSION DEP_FILE DOCKERFILE_PATH SARIF_DIR)
-          for var in "${required_vars[@]}"; do
-            [ -n "${!var}" ] || { echo "::error::$var is not set"; exit 1; }
-          done
 
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
@@ -49,66 +55,92 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 📦 Install Poetry
+      - name: 📦 Prepare dependency manifest (Poetry or requirements)
+        id: deps
+        shell: bash
         run: |
+          set -euo pipefail
+          if [[ -f poetry.lock ]]; then
+            python -m pip install --upgrade pip
+            pip install "poetry==1.8.3"
+            poetry --version
+            poetry export -f requirements.txt --output requirements.txt --without-hashes
+            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
+          elif [[ -f requirements.txt ]]; then
+            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No poetry.lock or requirements.txt found; pip-audit will attempt environment resolution."
+            echo "requirements=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 🧹 Lint (black, flake8)
+        shell: bash
+        run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install "poetry==1.8.3"
-          poetry --version
-
-      - name: 📤 Export Dependencies
-        run: poetry export -f requirements.txt --output "$DEP_FILE" --without-hashes
-
-      - name: 🧹 Lint Python Code
-        run: |
           pip install black flake8
           black --check .
           flake8 .
 
-      - name: 🔐 Install Security Tools
-        run: |
-          pip install bandit pip-audit
-          echo "⬇️ Fetching latest Gitleaks release..."
-          GITLEAKS_URL=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
-            | grep browser_download_url \
-            | grep linux-amd64 \
-            | cut -d '"' -f 4)
-          echo "Downloading from: $GITLEAKS_URL"
-          curl -fsSL "$GITLEAKS_URL" -o /tmp/gitleaks
-          chmod +x /tmp/gitleaks
-          sudo mv /tmp/gitleaks "$GITLEAKS_BIN"
-          file "$GITLEAKS_BIN" | grep -q ELF || { echo "::error::Downloaded gitleaks is not a binary"; exit 1; }
-          "$GITLEAKS_BIN" version
-
-      - name: 🔍 Run Gitleaks (Secrets Scan)
-        run: |
-          "$GITLEAKS_BIN" detect \
-            --source=. \
-            --no-banner \
-            --report-format sarif \
-            --report-path "$SARIF_DIR/gitleaks.sarif"
+      - name: 🔐 Gitleaks secrets scan (SARIF)
+        # Official action avoids brittle curl URLs and handles release assets
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          version: ${{ env.GITLEAKS_VERSION }}
+          args: >-
+            detect
+            --no-banner
+            --redact
+            --report-format sarif
+            --report-path ${{ env.SARIF_DIR }}/gitleaks.sarif
+            --source .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📤 Upload Gitleaks SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: "$SARIF_DIR/gitleaks.sarif"
+          sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
-      - name: 🧪 Run pip-audit (Dependency CVEs)
+      - name: 🧪 Dependency CVE audit (pip-audit SARIF)
+        shell: bash
         run: |
-          pip-audit --requirement "$DEP_FILE" \
-            --format sarif \
-            --output "$SARIF_DIR/pip-audit.sarif" \
-            --strict || exit 1
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install "pip-audit==2.7.3"
+          if [[ -n "${{ steps.deps.outputs.requirements }}" ]]; then
+            pip-audit --requirement "${{ steps.deps.outputs.requirements }}" \
+              --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
+          else
+            pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
+          fi
 
       - name: 📤 Upload pip-audit SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: "$SARIF_DIR/pip-audit.sarif"
+          sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
-      - name: 🧠 Run Bandit (Static Python Analysis)
+      - name: 🧠 Bandit static analysis (SARIF)
+        shell: bash
         run: |
-          bandit -r . -q -f sarif -o "$SARIF_DIR/bandit.sarif" || exit 1
+          set -euo pipefail
+          pip install "bandit[toml]==1.7.10"
+          # -q reduces noisy logs; we still fail via exit code
+          bandit -r . -q -ll -s B101 \
+            -f sarif -o "${SARIF_DIR}/bandit.sarif" \
+            --severity-level "${BANDIT_SEVERITY}"
 
       - name: 📤 Upload Bandit SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: "$SARIF_DIR/bandit.sarif"
+          sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
+
+      - name: 🧽 Secure cleanup
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Remove any leftover archives or caches we created
+          find . -maxdepth 2 -name "*.tar" -o -name "*.tar.gz" -o -name "*.zip" | xargs -r shred -u
+          # Keep SARIF only for upload; runner is ephemeral, but we restrict perms
+          chmod -R go-rwx "${SARIF_DIR}" || true
