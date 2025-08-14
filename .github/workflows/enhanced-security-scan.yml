@@ -18,19 +18,14 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-
-  # Tool versions (no magic constants)
   BLACK_VERSION: "24.8.0"
   FLAKE8_VERSION: "7.1.0"
   PIP_AUDIT_VERSION: "2.9.0"
   BANDIT_VERSION: "1.8.6"
-
-  # Gitleaks container
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
-
-  # Single flag controlling uploads (true for push or same-repo PRs)
+  # Allow uploads only on push or same-repo PRs
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
@@ -42,22 +37,17 @@ jobs:
         shell: bash
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Prepare SARIF directory
-        run: install -d -m 750 "${SARIF_DIR}"
+      - run: install -d -m 750 "${SARIF_DIR}"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Resolve dependencies
-        id: deps
+      - id: deps
         run: |
-          set -Euo pipefail
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
             pip install "poetry==1.8.3"
@@ -69,9 +59,7 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Lint (black, flake8)
-        run: |
-          set -Euo pipefail
+      - run: |
           pip install "black==${BLACK_VERSION}" "flake8==${FLAKE8_VERSION}"
           black --check .
           flake8 .
@@ -79,7 +67,6 @@ jobs:
       - name: 🔐 Gitleaks scan
         continue-on-error: true
         run: |
-          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
           {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"$2","version":"$3"}},"results":[]}]}
@@ -102,16 +89,14 @@ jobs:
             write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
           [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
 
-      - name: Upload Gitleaks SARIF
+      - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
       - name: 🧪 pip-audit
         continue-on-error: true
         run: |
-          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
           {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"${PIP_AUDIT_VERSION}"}},"results":[]}]}
@@ -126,16 +111,14 @@ jobs:
           fi
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty "${SARIF_DIR}/pip-audit.sarif"
 
-      - name: Upload pip-audit SARIF
+      - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
       - name: 🧠 Bandit
         continue-on-error: true
         run: |
-          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
           {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"${BANDIT_VERSION}"}},"results":[]}]}
@@ -145,13 +128,12 @@ jobs:
           bandit -r . -q --severity-level "medium" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
           [[ -s "${SARIF_DIR}/bandit.sarif" ]] || write_empty "${SARIF_DIR}/bandit.sarif"
 
-      - name: Upload Bandit SARIF
+      - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
-        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
 
-      - name: Archive SARIF bundle (for manual review)
+      - name: Archive SARIF bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
