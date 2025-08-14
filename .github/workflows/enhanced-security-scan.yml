@@ -18,10 +18,20 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BANDIT_SEVERITY: "medium"
+
+  # Tool versions (no magic constants)
+  BLACK_VERSION: "24.8.0"
+  FLAKE8_VERSION: "7.1.0"
+  PIP_AUDIT_VERSION: "2.9.0"
+  BANDIT_VERSION: "1.8.6"
+
+  # Gitleaks container
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
+
+  # Single flag controlling uploads (true for push or same-repo PRs)
+  UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
   security:
@@ -32,17 +42,22 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - run: install -d -m 750 "${SARIF_DIR}"
+      - name: Prepare SARIF directory
+        run: install -d -m 750 "${SARIF_DIR}"
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - id: deps
+      - name: Resolve dependencies
+        id: deps
         run: |
+          set -Euo pipefail
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
             pip install "poetry==1.8.3"
@@ -54,14 +69,17 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - run: |
-          pip install "black==24.8.0" "flake8==7.1.0"
+      - name: Lint (black, flake8)
+        run: |
+          set -Euo pipefail
+          pip install "black==${BLACK_VERSION}" "flake8==${FLAKE8_VERSION}"
           black --check .
           flake8 .
 
       - name: 🔐 Gitleaks scan
         continue-on-error: true
         run: |
+          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
           {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"$2","version":"$3"}},"results":[]}]}
@@ -84,46 +102,60 @@ jobs:
             write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
           [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
 
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Upload Gitleaks SARIF
+        if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
       - name: 🧪 pip-audit
         continue-on-error: true
         run: |
+          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"2.9.0"}},"results":[]}]}
+          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"${PIP_AUDIT_VERSION}"}},"results":[]}]}
           JSON
           }
-          pip install "pip-audit==2.9.0"
+          pip install "pip-audit==${PIP_AUDIT_VERSION}"
           req="${{ steps.deps.outputs.requirements }}"
-          if [[ -n "$req" ]]; then
-            pip-audit --requirement "$req" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
+          if [[ -n "${req}" ]]; then
+            pip-audit --requirement "${req}" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           else
             pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           fi
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty "${SARIF_DIR}/pip-audit.sarif"
 
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Upload pip-audit SARIF
+        if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
       - name: 🧠 Bandit
         continue-on-error: true
         run: |
+          set -Euo pipefail
           write_empty() {
             cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"1.8.6"}},"results":[]}]}
+          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"${BANDIT_VERSION}"}},"results":[]}]}
           JSON
           }
-          pip install "bandit[toml]==1.8.6"
-          bandit -r . -q --severity-level "${BANDIT_SEVERITY}" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
+          pip install "bandit[toml]==${BANDIT_VERSION}"
+          bandit -r . -q --severity-level "medium" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
           [[ -s "${SARIF_DIR}/bandit.sarif" ]] || write_empty "${SARIF_DIR}/bandit.sarif"
 
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Upload Bandit SARIF
+        if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
+
+      - name: Archive SARIF bundle (for manual review)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sarif-reports
+          path: ${{ env.SARIF_DIR }}/**
+          if-no-files-found: warn
+          retention-days: 3
