@@ -1,0 +1,2 @@
+# tests/trigger.txt
+AWS_SECRET_ACCESS_KEY = "AKIA1234567890ABCDEF"
