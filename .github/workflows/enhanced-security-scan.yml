@@ -1,4 +1,4 @@
-name: "🛡️ Security & Secrets Scan"
+name: "AppSec — Security and secrets scan"
 
 on:
   push:
@@ -26,7 +26,6 @@ env:
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
-  # Limit SARIF uploads to push / same‑repo PR
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
@@ -38,22 +37,46 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: 📂 Prepare SARIF output dir
+      - name: 📂 Prepare SARIF output dir and helpers
         run: |
           set -euo pipefail
           install -d -m 750 "${SARIF_DIR}"
+          install -d -m 750 .ci/bin
+          cat > .ci/bin/sarif_utils.sh <<'BASH'
+          set -euo pipefail
+          write_empty_sarif() {
+            local file="$1" tool="$2" ver="$3"
+            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
+          }
+          safe_cat() {
+            local file="$1"
+            if [[ -f "$file" ]]; then
+              echo "--- $(basename "$file") ---"
+              # Avoid leaking TTY control characters
+              sed -e $'s/\r//'
+            else
+              echo "::notice::No file at $file"
+            fi
+          }
+          BASH
+          chmod 750 .ci/bin/sarif_utils.sh
 
-      - uses: actions/setup-python@v5
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
       - id: deps
-        name: 📦 Resolve Dependencies
+        name: 📦 Resolve dependencies
         run: |
           set -euo pipefail
+          source .ci/bin/sarif_utils.sh
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
             pip install "poetry==1.8.3"
@@ -65,7 +88,7 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 🧹 Lint & Format Check
+      - name: 🧹 Lint & format check
         run: |
           set -euo pipefail
           pip install \
@@ -74,14 +97,11 @@ jobs:
           black --check .
           flake8 .
 
-      - name: 🔐 Gitleaks Scan
+      - name: 🔐 Gitleaks scan
         continue-on-error: true
         run: |
           set -euo pipefail
-          write_empty_sarif() {
-            local file="$1" tool="$2" ver="$3"
-            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
-          }
+          source .ci/bin/sarif_utils.sh
 
           tag="${GITLEAKS_IMAGE_TAG}"
           docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
@@ -121,12 +141,10 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          write_empty_sarif() {
-            local file="$1" tool="$2" ver="$3"
-            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
-          }
+          source .ci/bin/sarif_utils.sh
 
           pip install "pip-audit==${PIP_AUDIT_VERSION}"
+
           req="${{ steps.deps.outputs.requirements }}"
           if [[ -n "${req}" ]]; then
             pip-audit --requirement "${req}" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
@@ -145,18 +163,93 @@ jobs:
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
-      - name: 🧠 Bandit Security Linter
+      - name: 🧠 Bandit security linter (JSON → SARIF)
         continue-on-error: true
         run: |
           set -euo pipefail
-          write_empty_sarif() {
-            local file="$1" tool="$2" ver="$3"
-            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
-          }
+          source .ci/bin/sarif_utils.sh
 
           pip install "bandit[toml]==${BANDIT_VERSION}"
-          bandit -r . -q --severity-level "medium" \
-            -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
+
+          # Run Bandit to JSON (more broadly supported than SARIF in Bandit itself)
+          bandit -r . -q --severity-level "medium" -f json -o "${SARIF_DIR}/bandit.json" || true
+          [[ -f "${SARIF_DIR}/bandit.json" ]] || echo '{}' > "${SARIF_DIR}/bandit.json"
+
+          # Minimal, correct SARIF v2.1.0 converter for Bandit JSON
+          python << 'PY'
+          import json, os, sys
+          bandit_json_path = os.path.join(os.environ.get("SARIF_DIR","sarif-reports"), "bandit.json")
+          sarif_out_path = os.path.join(os.environ.get("SARIF_DIR","sarif-reports"), "bandit.sarif")
+          bandit_ver = os.environ.get("BANDIT_VERSION","unknown")
+
+          try:
+            with open(bandit_json_path, "r", encoding="utf-8") as f:
+              data = json.load(f)
+          except Exception:
+            data = {}
+
+          results_in = data.get("results", []) or []
+          # Build rules map
+          rules = {}
+          for r in results_in:
+            rule_id = r.get("test_id") or "BANDIT"
+            if rule_id not in rules:
+              rules[rule_id] = {
+                "id": rule_id,
+                "name": r.get("test_name") or rule_id,
+                "shortDescription": {"text": r.get("test_name") or rule_id},
+                "helpUri": r.get("more_info") or "",
+                "defaultConfiguration": {"level": "warning"},
+              }
+
+          def sev_to_level(s):
+            s = (s or "").lower()
+            if s == "high":
+              return "error"
+            if s == "medium":
+              return "warning"
+            return "note"
+
+          sarif_results = []
+          for r in results_in:
+            msg = r.get("issue_text") or "Bandit issue"
+            rule_id = r.get("test_id") or "BANDIT"
+            fname = r.get("filename") or ""
+            line = r.get("line_number") or 1
+            sev = r.get("issue_severity")
+            sarif_results.append({
+              "ruleId": rule_id,
+              "level": sev_to_level(sev),
+              "message": {"text": msg},
+              "locations": [{
+                "physicalLocation": {
+                  "artifactLocation": {"uri": fname.replace("\\","/")},
+                  "region": {"startLine": int(line)}
+                }
+              }],
+              "properties": {
+                "tags": ["bandit", r.get("test_name") or rule_id]
+              }
+            })
+
+          sarif = {
+            "version": "2.1.0",
+            "runs": [{
+              "tool": {
+                "driver": {
+                  "name": "bandit",
+                  "version": bandit_ver,
+                  "informationUri": "https://bandit.readthedocs.io/",
+                  "rules": list(rules.values())
+                }
+              },
+              "results": sarif_results
+            }]
+          }
+
+          with open(sarif_out_path, "w", encoding="utf-8") as f:
+            json.dump(sarif, f, indent=2)
+          PY
 
           [[ -f "${SARIF_DIR}/bandit.sarif" ]] || \
             write_empty_sarif "${SARIF_DIR}/bandit.sarif" "bandit" "${BANDIT_VERSION}"
