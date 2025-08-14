@@ -18,11 +18,13 @@ env:
   DEP_FILE: requirements.txt
   DOCKERFILE_PATH: Dockerfile
   SARIF_DIR: sarif-reports
+  GITLEAKS_URL: https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64
 
 jobs:
   static-and-secrets:
     name: Static Analysis & Secrets
     runs-on: ubuntu-latest
+
     steps:
       - name: 🧾 Checkout Repository
         uses: actions/checkout@v4
@@ -31,12 +33,12 @@ jobs:
 
       - name: 📂 Prepare SARIF Directory
         run: |
-          mkdir -p ${{ env.SARIF_DIR }}
-          chmod 700 ${{ env.SARIF_DIR }}
+          mkdir -p "${{ env.SARIF_DIR }}"
+          chmod 700 "${{ env.SARIF_DIR }}"
 
-      - name: ✅ Preflight Secret Check
+      - name: ✅ Validate Required Env Vars
         run: |
-          required_vars=("IMAGE_NAME" "PYTHON_VERSION" "DEP_FILE")
+          required_vars=(IMAGE_NAME PYTHON_VERSION DEP_FILE DOCKERFILE_PATH SARIF_DIR)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "::error::$var is not set"
@@ -57,7 +59,7 @@ jobs:
           poetry --version
 
       - name: 📤 Export Dependencies
-        run: poetry export -f requirements.txt --output ${{ env.DEP_FILE }} --without-hashes
+        run: poetry export -f requirements.txt --output "${{ env.DEP_FILE }}" --without-hashes
 
       - name: 🧹 Lint Python Code
         run: |
@@ -68,44 +70,51 @@ jobs:
       - name: 🔐 Install Security Tools
         run: |
           pip install bandit pip-audit
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
-          chmod +x gitleaks && sudo mv gitleaks /usr/local/bin/
+          echo "⬇️ Downloading verified Gitleaks binary..."
+          curl -sSL "${{ env.GITLEAKS_URL }}" -o /tmp/gitleaks
+          chmod +x /tmp/gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+          echo "Verifying Gitleaks install..."
+          /usr/local/bin/gitleaks version || (echo "❌ Gitleaks installation failed" && exit 1)
 
-      - name: 🔍 Run Gitleaks
+      - name: 🔍 Run Gitleaks (Secrets Scan)
         run: |
-          gitleaks detect --source=. --no-banner \
+          /usr/local/bin/gitleaks detect \
+            --source=. \
+            --no-banner \
             --report-format sarif \
-            --report-path ${{ env.SARIF_DIR }}/gitleaks.sarif
+            --report-path "${{ env.SARIF_DIR }}/gitleaks.sarif"
 
       - name: 📤 Upload Gitleaks SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
+          sarif_file: "${{ env.SARIF_DIR }}/gitleaks.sarif"
 
-      - name: 🧪 Run pip-audit
+      - name: 🧪 Run pip-audit (Dependency CVEs)
         run: |
-          pip-audit --requirement ${{ env.DEP_FILE }} \
+          pip-audit --requirement "${{ env.DEP_FILE }}" \
             --format sarif \
-            --output ${{ env.SARIF_DIR }}/pip-audit.sarif \
+            --output "${{ env.SARIF_DIR }}/pip-audit.sarif" \
             --strict || exit 1
 
       - name: 📤 Upload pip-audit SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
+          sarif_file: "${{ env.SARIF_DIR }}/pip-audit.sarif"
 
-      - name: 🧠 Run Bandit
+      - name: 🧠 Run Bandit (Static Python Analysis)
         run: |
-          bandit -r . -q -f sarif -o ${{ env.SARIF_DIR }}/bandit.sarif || exit 1
+          bandit -r . -q -f sarif -o "${{ env.SARIF_DIR }}/bandit.sarif" || exit 1
 
       - name: 📤 Upload Bandit SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
+          sarif_file: "${{ env.SARIF_DIR }}/bandit.sarif"
 
   container-scan:
     name: Docker Image Vulnerability Scan
     runs-on: ubuntu-latest
+
     steps:
       - name: 🧾 Checkout Repository
         uses: actions/checkout@v4
@@ -126,8 +135,8 @@ jobs:
       - name: 🏗️ Build Docker Image
         if: steps.dockerfile-check.outputs.found == 'true'
         run: docker build --pull --no-cache \
-              -t ${{ env.IMAGE_NAME }} \
-              -f ${{ env.DOCKERFILE_PATH }} .
+              -t "${{ env.IMAGE_NAME }}" \
+              -f "${{ env.DOCKERFILE_PATH }}" .
 
       - name: 🛠️ Install Grype
         if: steps.dockerfile-check.outputs.found == 'true'
@@ -136,14 +145,14 @@ jobs:
       - name: 🧪 Scan Docker Image with Grype
         if: steps.dockerfile-check.outputs.found == 'true'
         run: |
-          mkdir -p ${{ env.SARIF_DIR }}
-          chmod 700 ${{ env.SARIF_DIR }}
-          grype ${{ env.IMAGE_NAME }} -o sarif > ${{ env.SARIF_DIR }}/grype.sarif || true
+          mkdir -p "${{ env.SARIF_DIR }}"
+          chmod 700 "${{ env.SARIF_DIR }}"
+          grype "${{ env.IMAGE_NAME }}" -o sarif > "${{ env.SARIF_DIR }}/grype.sarif" || true
 
       - name: ❌ Fail on High/Critical Vulnerabilities
         if: steps.dockerfile-check.outputs.found == 'true'
         run: |
-          if grep -E '"ruleId":\s*"(High|Critical)"' ${{ env.SARIF_DIR }}/grype.sarif >/dev/null; then
+          if grep -E '"ruleId":\s*"(High|Critical)"' "${{ env.SARIF_DIR }}/grype.sarif" >/dev/null; then
             echo "::error::❌ High/Critical vulnerabilities detected"
             exit 1
           fi
@@ -152,4 +161,4 @@ jobs:
         if: steps.dockerfile-check.outputs.found == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/grype.sarif
+          sarif_file: "${{ env.SARIF_DIR }}/grype.sarif"
