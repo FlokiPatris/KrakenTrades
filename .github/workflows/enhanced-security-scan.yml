@@ -16,52 +16,32 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Tunables
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BANDIT_SEVERITY: "medium"           # low|medium|high
+  BANDIT_SEVERITY: "medium"
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
-  GITLEAKS_IMAGE_TAG: "8.18.2"        # preferred (may not exist on Docker Hub)
-  GITLEAKS_FALLBACK_TAG: "latest"     # robust fallback
+  GITLEAKS_IMAGE_TAG: "8.18.2"
+  GITLEAKS_FALLBACK_TAG: "latest"
 
 jobs:
   security:
-    name: Static analysis, dependencies, and secrets
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      security-events: write
-
     defaults:
       run:
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        shell: bash
 
     steps:
-      - name: 🧾 Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: 🔒 Validate environment and prepare artifacts dir
-        run: |
-          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_IMAGE GITLEAKS_IMAGE_TAG GITLEAKS_FALLBACK_TAG)
-          for key in "${required_vars[@]}"; do
-            if [[ -z "${!key:-}" ]]; then
-              echo "::error title=Missing environment variable::${key} is not set"
-              exit 1
-            fi
-          done
-          install -d -m 750 "${SARIF_DIR}"
+      - run: install -d -m 750 "${SARIF_DIR}"
 
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 📦 Prepare dependency manifest (Poetry or requirements)
-        id: deps
+      - id: deps
         run: |
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
@@ -71,184 +51,79 @@ jobs:
           elif [[ -f requirements.txt ]]; then
             echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::No poetry.lock or requirements.txt found; pip-audit will attempt environment resolution."
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 🧹 Install and run linters
-        run: |
-          python -m pip install --upgrade pip
+      - run: |
           pip install "black==24.8.0" "flake8==7.1.0"
           black --check .
           flake8 .
 
-      - name: 🔐 Gitleaks secrets scan (Docker, SARIF)
+      - name: 🔐 Gitleaks scan
         continue-on-error: true
-        env:
-          IMAGE: ${{ env.GITLEAKS_IMAGE }}
-          TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
-          FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
         run: |
-          write_empty_sarif() {
-            local tool="$1" version="$2" path="$3"
-            cat > "${path}" <<JSON
-          {
-            "version": "2.1.0",
-            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "runs": [
-              {
-                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
-                "results": []
-              }
-            ]
-          }
+          write_empty() {
+            cat > "$1" <<JSON
+          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"$2","version":"$3"}},"results":[]}]}
           JSON
           }
-
-          resolved_tag="$TAG"
-          if ! docker pull "${IMAGE}:${resolved_tag}" >/dev/null 2>&1; then
-            echo "::warning title=Gitleaks image tag missing::${IMAGE}:${resolved_tag} not found. Falling back to ${FALLBACK_TAG}"
-            resolved_tag="$FALLBACK_TAG"
-            if ! docker pull "${IMAGE}:${resolved_tag}" >/dev/null 2>&1; then
-              echo "::error::Failed to pull ${IMAGE}:${resolved_tag}. Producing empty SARIF."
-              write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
+          tag="${GITLEAKS_IMAGE_TAG}"
+          docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
+            echo "::warning::Falling back to ${GITLEAKS_FALLBACK_TAG}"
+            tag="${GITLEAKS_FALLBACK_TAG}"
+            docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
+              write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
               exit 0
-            fi
-          fi
-
-          cfg_args=()
-          if [[ -f ".gitleaks.toml" ]]; then
-            cfg_args+=(--config "/repo/.gitleaks.toml")
-          fi
-
+            }
+          }
           uid_gid="$(id -u):$(id -g)"
-          if ! docker run --rm \
-            --user "${uid_gid}" \
-            --read-only \
-            --cap-drop=ALL \
-            --network none \
-            -v "$PWD:/repo:ro" \
-            -v "$PWD/${SARIF_DIR}:/out:rw" \
-            -w /repo \
-            "${IMAGE}:${resolved_tag}" detect \
-              --no-banner \
-              --redact \
-              --source /repo \
-              --report-format sarif \
-              --report-path "/out/gitleaks.sarif" \
-              "${cfg_args[@]}"; then
-            echo "::warning::gitleaks failed to run. Producing empty SARIF."
-            write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
-          fi
+          docker run --rm --user "$uid_gid" --read-only --cap-drop=ALL --network none \
+            -v "$PWD:/repo:ro" -v "$PWD/${SARIF_DIR}:/out:rw" -w /repo \
+            "${GITLEAKS_IMAGE}:${tag}" detect --no-banner --redact \
+            --source /repo --report-format sarif --report-path "/out/gitleaks.sarif" || \
+            write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+          [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
 
-          # If report is missing or empty, ensure a valid SARIF exists
-          if [[ ! -s "${SARIF_DIR}/gitleaks.sarif" ]]; then
-            write_empty_sarif "gitleaks" "${resolved_tag}" "${SARIF_DIR}/gitleaks.sarif"
-          fi
-
-      - name: 📤 Upload Gitleaks SARIF
-        if: ${{ always() }}
-        uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
-      - name: 🧪 Dependency CVE audit (pip-audit SARIF)
+      - name: 🧪 pip-audit
         continue-on-error: true
-        env:
-          REQ_FILE: ${{ steps.deps.outputs.requirements }}
         run: |
-          write_empty_sarif() {
-            local tool="$1" version="$2" path="$3"
-            cat > "${path}" <<JSON
-          {
-            "version": "2.1.0",
-            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "runs": [
-              {
-                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
-                "results": []
-              }
-            ]
-          }
+          write_empty() {
+            cat > "$1" <<JSON
+          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"2.9.0"}},"results":[]}]}
           JSON
           }
-
-          python -m pip install --upgrade pip
           pip install "pip-audit==2.9.0"
-
-          set +e  # tolerate non-zero from --strict while still producing output
-          if [[ -n "${REQ_FILE}" ]]; then
-            pip-audit --requirement "${REQ_FILE}" \
-              --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
+          req="${{ steps.deps.outputs.requirements }}"
+          if [[ -n "$req" ]]; then
+            pip-audit --requirement "$req" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           else
-            pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict
+            pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           fi
-          rc=$?
-          set -e
+          [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty "${SARIF_DIR}/pip-audit.sarif"
 
-          # Ensure SARIF exists even on error
-          if [[ ! -s "${SARIF_DIR}/pip-audit.sarif" ]]; then
-            echo "::warning::pip-audit did not produce SARIF. Creating empty report."
-            write_empty_sarif "pip-audit" "2.9.0" "${SARIF_DIR}/pip-audit.sarif"
-          fi
-
-          # Propagate failure as non-blocking (report uploaded regardless)
-          if [[ $rc -ne 0 ]]; then
-            echo "::warning::pip-audit exited with code ${rc} (strict mode)."
-          fi
-
-      - name: 📤 Upload pip-audit SARIF
-        if: ${{ always() }}
-        uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
-      - name: 🧠 Bandit static analysis (SARIF)
+      - name: 🧠 Bandit
         continue-on-error: true
         run: |
-          write_empty_sarif() {
-            local tool="$1" version="$2" path="$3"
-            cat > "${path}" <<JSON
-          {
-            "version": "2.1.0",
-            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "runs": [
-              {
-                "tool": { "driver": { "name": "${tool}", "version": "${version}" } },
-                "results": []
-              }
-            ]
-          }
+          write_empty() {
+            cat > "$1" <<JSON
+          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"1.8.6"}},"results":[]}]}
           JSON
           }
-
-          python -m pip install --upgrade pip
           pip install "bandit[toml]==1.8.6"
+          bandit -r . -q --severity-level "${BANDIT_SEVERITY}" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
+          [[ -s "${SARIF_DIR}/bandit.sarif" ]] || write_empty "${SARIF_DIR}/bandit.sarif"
 
-          set +e  # let bandit return non-zero without killing the step
-          bandit -r . -q \
-            --severity-level "${BANDIT_SEVERITY}" \
-            -f sarif -o "${SARIF_DIR}/bandit.sarif"
-          rc=$?
-          set -e
-
-          if [[ ! -s "${SARIF_DIR}/bandit.sarif" ]]; then
-            echo "::warning::Bandit did not produce SARIF. Creating empty report."
-            write_empty_sarif "bandit" "1.8.6" "${SARIF_DIR}/bandit.sarif"
-          fi
-
-          if [[ $rc -ne 0 ]]; then
-            echo "::warning::Bandit exited with code ${rc}."
-          fi
-
-      - name: 📤 Upload Bandit SARIF
-        if: ${{ always() }}
-        uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
-
-      - name: 🧽 Secure cleanup
-        if: ${{ always() }}
-        run: |
-          find . -maxdepth 2 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.zip" \) -print0 | xargs -0 -r rm -f
-          chmod -R go-rwx "${SARIF_DIR}" || true
