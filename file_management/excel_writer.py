@@ -253,4 +253,4 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
         # Write ROI Table
         export_roi_table(roi_records, writer)
 
-    custom_logger.info(f"✅ Excel report successfully written")
+    custom_logger.info("✅ Excel report successfully written")

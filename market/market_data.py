@@ -33,7 +33,7 @@ def fetch_market_price(pair: str) -> Optional[float]:
         custom_logger.warning(f"Parsing error for {pair} response: {parse_err}")
     except Exception as e:
         custom_logger.exception(
-            f"Unexpected error while fetching market price for {pair}"
+            f"Unexpected exception: {e} while fetching market price for {pair}"
         )
 
     return None
