@@ -1,7 +1,7 @@
 import logging
 import sys
 
-def _create_custom_logger(name: str = "kraken_trades") -> logging.Logger:
+def _create_custom_logger(name: str = "trades") -> logging.Logger:
     """
     Internal function to configure the logger once.
     """

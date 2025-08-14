@@ -21,11 +21,21 @@ venv/
 .pytest_cache/
 
 # Docker
-*.db
-*.sqlite3
-*.pid
-*.seed
-*.swp
+.git
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.env
+.env.*
+node_modules/
+dist/
+build/
+*.sarif
+.DS_Store
 
 # PyCharm
 .idea/
@@ -39,7 +49,7 @@ coverage.xml
 nosetests.xml
 test-results/
 junit.xml
-trades_from_kraken.pdf
+trades.*
 kraken_parsed_trades.xlsx
 
 # System junk

@@ -1,4 +1,4 @@
-from kraken_core import MainSummaryMetrics, TradeBreakdownSnapshot, TradeColumn, custom_logger
+from kraken_core import MainSummaryMetrics, TradeBreakdownSnapshot, TradeColumn, FormatRules, custom_logger
 from market import manual_onyx_injection, manual_litecoin_injection, fetch_market_price
 from pathlib import Path
 import pandas as pd
@@ -28,17 +28,17 @@ def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFram
         snapshot.sells,
         pd.DataFrame([{TradeColumn.UNIQUE_ID.value: ""}]),
         generate_trade_report_block("IF ALL SOLD NOW:", {
-            TradeColumn.TRADE_PRICE.value: f"{snapshot.market_price:.4f} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}",
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.buy_volume:.4f} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.potential_value:.4f} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
+            TradeColumn.TRADE_PRICE.value: f"{snapshot.market_price} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}",
+            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.buy_volume} {snapshot.token}",
+            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.potential_value} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
         }),
         generate_trade_report_block("ALREADY SOLD:", {
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.sell_volume:.4f} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total:.4f} {snapshot.currency}"
+            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.sell_volume} {snapshot.token}",
+            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total} {snapshot.currency}"
         }),
         generate_trade_report_block("IF REST SOLD NOW:", {
-            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume:.4f} {snapshot.token}",
-            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value:.4f} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
+            TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume} {snapshot.token}",
+            TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value} {snapshot.currency}" if snapshot.market_price else f"N/A {snapshot.currency}"
         })
     ]
 
@@ -60,17 +60,17 @@ def generate_portfolio_summary(
     """
     custom_logger.info("Generating portfolio summary")
 
-    net_result = round((total_sells + unrealized_value - total_buys), 4)
-    potential_profit = round(total_all_sold_now_value - total_buys, 4)
+    net_result = round(total_sells + unrealized_value - total_buys)
+    potential_profit = round(total_all_sold_now_value - total_buys)
 
     summary_data = [
-        ["Total Buys", round(total_buys, 4)],
-        ["Total Sells", round(total_sells, 4)],
-        ["Unrealized Value (if rest sold)", round(unrealized_value, 4)],
-        ["If All Bought Sold Now (market value)", round(total_all_sold_now_value, 4)],
+        ["Total Buys", round(total_buys)],
+        ["Total Sells", round(total_sells)],
+        ["Unrealized Value (if rest sold)", round(unrealized_value)],
+        ["If All Bought Sold Now (market value)", round(total_all_sold_now_value)],
         ["Net Position", net_result],
-        ["You Could Be Up To", f"{'🟢 You could be up to' if potential_profit >= 0 else '🔻 You could be down by'} €{abs(potential_profit):.4f}"],
-        ["Result", f"{'🟢 You’re up' if net_result >= 0 else '🔻 You’re down'} €{abs(net_result):.4f}"]
+        ["You Could Be Up To", f"{'🟢 You could be up to' if potential_profit >= 0 else '🔻 You could be down by'} €{abs(potential_profit)}"],
+        ["Result", f"{'🟢 You’re up' if net_result >= 0 else '🔻 You’re down'} €{abs(net_result)}"]
     ]
 
     return pd.DataFrame(summary_data, columns=["Metric", "EUR Value"])
@@ -103,9 +103,9 @@ def apply_manual_injections(pair: str, buys: pd.DataFrame) -> pd.DataFrame:
     """
     custom_logger.debug(f"Applying manual injections for pair: {pair}")
     if pair == "XCN/EUR":
-        return manual_onyx_injection(buys)
+        buys = manual_onyx_injection(buys)
     elif pair == "LTC/EUR":
-        return manual_litecoin_injection(buys)
+        buys = manual_litecoin_injection(buys)
     return buys
 
 
@@ -145,9 +145,8 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
             remaining_volume = buy_volume - sell_volume
             cost = float(buy_total + buy_fee)
-
-            current_value = round(remaining_volume * market_price, 4) if market_price else 0
-            potential_value = round(buy_volume * market_price, 4) if market_price else 0
+            current_value = remaining_volume * market_price
+            potential_value = buy_volume * market_price
             total_value = current_value + sell_total
 
             realized_roi = ((total_value - cost) / cost) if cost > 0 else 0
@@ -161,12 +160,12 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             roi_records.append(MainSummaryMetrics(
                 token=token,
                 pair=pair,
-                total_cost=round(cost, 2),
-                realized_sells=round(sell_total, 2),
-                unrealized_value=round(current_value, 2),
-                total_value=round(total_value, 2),
-                roi=round(realized_roi * 100, 2),
-                potential_roi=round(potential_roi * 100, 2)
+                total_cost=cost,
+                realized_sells=sell_total,
+                unrealized_value=current_value,
+                total_value=total_value,
+                roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_8),
+                potential_roi=round(potential_roi * 100, FormatRules.DECIMAL_PLACES_8)
             ))
 
             snapshot = TradeBreakdownSnapshot(

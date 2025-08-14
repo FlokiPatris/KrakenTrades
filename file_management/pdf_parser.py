@@ -72,7 +72,7 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
     ]
 
     for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce").round(FormatRules.ROUNDING_DECIMAL_PLACES)
+        df[col] = pd.to_numeric(df[col], errors="coerce").round(FormatRules.DECIMAL_PLACES_10)
         custom_logger.debug(f"Converted column to numeric: {col}")
 
     # Rename columns using RawColumn → TradeColumn mapping

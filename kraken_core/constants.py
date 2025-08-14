@@ -72,4 +72,6 @@ class FormatRules:
     """
     Formatting configuration for numeric precision.
     """
-    ROUNDING_DECIMAL_PLACES: int = 10
+    DECIMAL_PLACES_10: int = 10
+    DECIMAL_PLACES_2: int = 2
+    DECIMAL_PLACES_8: int = 8
