@@ -1,10 +1,10 @@
-name: 🛡️ Enhanced Security Scan
+name: "🛡️ Enhanced Security Scan"
 
 on:
   push:
-    branches: [ "**" ]
+    branches: ["**"]
   pull_request:
-    branches: [ "**" ]
+    branches: ["**"]
   workflow_dispatch:
 
 permissions:
@@ -23,7 +23,6 @@ jobs:
   static-and-secrets:
     name: Static Analysis & Secrets
     runs-on: ubuntu-latest
-
     steps:
       - name: 🧾 Checkout Repository
         uses: actions/checkout@v4
@@ -51,7 +50,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 📦 Install Poetry (pinned version)
+      - name: 📦 Install Poetry
         run: |
           python -m pip install --upgrade pip
           pip install "poetry==1.8.3"
@@ -59,7 +58,6 @@ jobs:
 
       - name: 📤 Export Dependencies
         run: poetry export -f requirements.txt --output ${{ env.DEP_FILE }} --without-hashes
-
 
       - name: 🧹 Lint Python Code
         run: |
@@ -69,12 +67,11 @@ jobs:
 
       - name: 🔐 Install Security Tools
         run: |
-          pip install --upgrade pip
           pip install bandit pip-audit
           curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
           chmod +x gitleaks && sudo mv gitleaks /usr/local/bin/
 
-      - name: 🔍 Run Gitleaks (Secrets Scan)
+      - name: 🔍 Run Gitleaks
         run: |
           gitleaks detect --source=. --no-banner \
             --report-format sarif \
@@ -85,7 +82,7 @@ jobs:
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
-      - name: 🧪 Run pip-audit (Dependency CVEs)
+      - name: 🧪 Run pip-audit
         run: |
           pip-audit --requirement ${{ env.DEP_FILE }} \
             --format sarif \
@@ -97,7 +94,7 @@ jobs:
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
-      - name: 🧠 Run Bandit (Static Python Analysis)
+      - name: 🧠 Run Bandit
         run: |
           bandit -r . -q -f sarif -o ${{ env.SARIF_DIR }}/bandit.sarif || exit 1
 
@@ -109,7 +106,6 @@ jobs:
   container-scan:
     name: Docker Image Vulnerability Scan
     runs-on: ubuntu-latest
-
     steps:
       - name: 🧾 Checkout Repository
         uses: actions/checkout@v4

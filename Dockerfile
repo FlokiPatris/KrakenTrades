@@ -18,26 +18,24 @@ ENV DEBIAN_FRONTEND=noninteractive \
     POETRY_VIRTUALENVS_CREATE=false \
     POETRY_NO_INTERACTION=1
 
-# Install minimal build deps only if needed for wheels (e.g., cryptography)
-# Keep this list minimal and remove afterward.
+# Install minimal build deps only if needed for wheels
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
       build-essential gcc curl git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry in a reproducible way
+# Install Poetry
 RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 WORKDIR /app
 
-# Copy lockfiles first for better layering and caching
-# If you use requirements.txt instead of poetry, adapt accordingly.
+# Copy lockfiles for caching
 COPY pyproject.toml poetry.lock ./
 
-# Export to requirements to ensure reproducible runtime install in final stage
+# Export requirements for reproducible runtime install
 RUN poetry export -f requirements.txt --without-hashes -o /tmp/requirements.txt
 
-# Copy application source (keep .dockerignore tight)
+# Copy application source
 COPY . /app
 
 ############################
@@ -45,16 +43,15 @@ COPY . /app
 ############################
 FROM python:3.11-slim AS runtime
 
-# Security: create non-root user and group with fixed IDs for consistency
+# Non-root user setup
 ARG APP_USER=appuser
 ARG APP_UID=10001
 ARG APP_GID=10001
 
-# Set python to not write .pyc and use UTF-8; keep logs unbuffered
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install only runtime OS deps (requests/certifi rely on CA certs)
+# Install only runtime OS deps
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -64,23 +61,15 @@ RUN --mount=type=cache,target=/var/cache/apt \
 
 WORKDIR /app
 
-# Copy only what’s needed at runtime
+# Install Python dependencies
 COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm -f /tmp/requirements.txt
 
-# Copy app source (exclude tests/docs in .dockerignore)
+# Copy application code
 COPY --chown=${APP_UID}:${APP_GID} . /app
 
 # Drop privileges
 USER ${APP_UID}:${APP_GID}
 
-# Default command; prefer passing args via ENTRYPOINT + CMD
-# Use a thin runner, not poetry, in runtime image to reduce layers/attack surface
 ENTRYPOINT ["python", "main.py"]
-
-# Runtime hardening is applied at run/compose time:
-# - Read-only FS:          docker run --read-only ...
-# - Drop capabilities:     docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE ...
-# - No new privileges:     docker run --security-opt=no-new-privileges ...
-# - Seccomp/AppArmor:      docker run --security-opt=seccomp=default.json (or distro default)
