@@ -26,7 +26,7 @@ env:
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
-  # Allow uploads only on push or same-repo PRs
+  # Limit SARIF uploads to push / same‑repo PR
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
@@ -35,12 +35,13 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        shell: bash
+        shell: bash -euo pipefail
 
     steps:
       - uses: actions/checkout@v4
 
-      - run: install -d -m 750 "${SARIF_DIR}"
+      - name: 📂 Prepare SARIF output dir
+        run: install -d -m 750 "${SARIF_DIR}"
 
       - uses: actions/setup-python@v5
         with:
@@ -48,6 +49,7 @@ jobs:
           cache: pip
 
       - id: deps
+        name: 📦 Resolve Dependencies
         run: |
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
@@ -60,35 +62,50 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - run: |
-          pip install "black==${BLACK_VERSION}" "flake8==${FLAKE8_VERSION}"
+      - name: 🧹 Lint & Format Check
+        run: |
+          pip install \
+            "black==${BLACK_VERSION}" \
+            "flake8==${FLAKE8_VERSION}"
           black --check .
           flake8 .
 
-      - name: 🔐 Gitleaks scan
+      - name: 🔐 Gitleaks Scan
         continue-on-error: true
         run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"$2","version":"$3"}},"results":[]}]}
-          JSON
+          write_empty_sarif() {
+            local file="$1" tool="$2" ver="$3"
+            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
           }
+
           tag="${GITLEAKS_IMAGE_TAG}"
           docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
             echo "::warning::Falling back to ${GITLEAKS_FALLBACK_TAG}"
             tag="${GITLEAKS_FALLBACK_TAG}"
             docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
-              write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+              write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
               exit 0
             }
           }
-          uid_gid="$(id -u):$(id -g)"
-          docker run --rm --user "$uid_gid" --read-only --cap-drop=ALL --network none \
-            -v "$PWD:/repo:ro" -v "$PWD/${SARIF_DIR}:/out:rw" -w /repo \
-            "${GITLEAKS_IMAGE}:${tag}" detect --no-banner --redact \
-            --source /repo --report-format sarif --report-path "/out/gitleaks.sarif" || \
-            write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
-          [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --read-only \
+            --cap-drop=ALL \
+            --network none \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/${SARIF_DIR}:/out:rw" \
+            -w /repo \
+            "${GITLEAKS_IMAGE}:${tag}" detect --no-banner \
+            --source /repo \
+            --report-format sarif \
+            --report-path "/out/gitleaks.sarif" || true
+
+          [[ -f "${SARIF_DIR}/gitleaks.sarif" ]] || \
+            write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+
+          echo "--- Gitleaks SARIF ---"
+          cat "${SARIF_DIR}/gitleaks.sarif"
 
       - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
@@ -98,11 +115,11 @@ jobs:
       - name: 🧪 pip-audit
         continue-on-error: true
         run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"${PIP_AUDIT_VERSION}"}},"results":[]}]}
-          JSON
+          write_empty_sarif() {
+            local file="$1" tool="$2" ver="$3"
+            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
           }
+
           pip install "pip-audit==${PIP_AUDIT_VERSION}"
           req="${{ steps.deps.outputs.requirements }}"
           if [[ -n "${req}" ]]; then
@@ -110,31 +127,42 @@ jobs:
           else
             pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           fi
-          [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty "${SARIF_DIR}/pip-audit.sarif"
+
+          [[ -f "${SARIF_DIR}/pip-audit.sarif" ]] || \
+            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "${PIP_AUDIT_VERSION}"
+
+          echo "--- pip-audit SARIF ---"
+          cat "${SARIF_DIR}/pip-audit.sarif"
 
       - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
-      - name: 🧠 Bandit
+      - name: 🧠 Bandit Security Linter
         continue-on-error: true
         run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"${BANDIT_VERSION}"}},"results":[]}]}
-          JSON
+          write_empty_sarif() {
+            local file="$1" tool="$2" ver="$3"
+            printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$tool" "$ver" > "$file"
           }
+
           pip install "bandit[toml]==${BANDIT_VERSION}"
-          bandit -r . -q --severity-level "medium" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
-          [[ -s "${SARIF_DIR}/bandit.sarif" ]] || write_empty "${SARIF_DIR}/bandit.sarif"
+          bandit -r . -q --severity-level "medium" \
+            -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
+
+          [[ -f "${SARIF_DIR}/bandit.sarif" ]] || \
+            write_empty_sarif "${SARIF_DIR}/bandit.sarif" "bandit" "${BANDIT_VERSION}"
+
+          echo "--- Bandit SARIF ---"
+          cat "${SARIF_DIR}/bandit.sarif"
 
       - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
 
-      - name: Archive SARIF bundle
+      - name: 📦 Archive SARIF bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
