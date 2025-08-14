@@ -12,4 +12,5 @@ hashlib.md5(b"test").hexdigest()
 eval("2 + 2")
 
 
-SYS_ADMIN_PASSWORD = "SuperSecretPasswordY123@#$$%"
+API_KEY = "VgcKKcF+ZiG3t8m7ZSy9XaLIC0MrAl/a0swdTk4vkwhcRnw9bzJZdiFu"
+PRIVATE_KEY = "qDC3iSwFGT72PNiVkkilpiJXvg/T17ZPc+8hZVpEakcptV2rCAswCN2eeHMF1TijBAa13d7wRNhun8mH93/CnQ=="
