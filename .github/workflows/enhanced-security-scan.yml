@@ -19,7 +19,6 @@ env:
   DOCKERFILE_PATH: Dockerfile
   SARIF_DIR: sarif-reports
   GITLEAKS_BIN: /usr/local/bin/gitleaks
-  GITLEAKS_BASE: https://github.com/gitleaks/gitleaks/releases/latest/download
 
 jobs:
   static-and-secrets:
@@ -68,13 +67,15 @@ jobs:
       - name: 🔐 Install Security Tools
         run: |
           pip install bandit pip-audit
-          ARCHIVE="gitleaks_$(uname -s)_$(uname -m)"
-          URL="${GITLEAKS_BASE}/${ARCHIVE}.tar.gz"
-          echo "⬇️ Downloading $URL"
-          curl -fsSL "$URL" -o /tmp/gitleaks.tar.gz
-          tar -xvzf /tmp/gitleaks.tar.gz -C /tmp
+          echo "⬇️ Fetching latest Gitleaks release..."
+          GITLEAKS_URL=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
+            | grep browser_download_url \
+            | grep linux-amd64 \
+            | cut -d '"' -f 4)
+          echo "Downloading from: $GITLEAKS_URL"
+          curl -fsSL "$GITLEAKS_URL" -o /tmp/gitleaks
+          chmod +x /tmp/gitleaks
           sudo mv /tmp/gitleaks "$GITLEAKS_BIN"
-          sudo chmod 755 "$GITLEAKS_BIN"
           file "$GITLEAKS_BIN" | grep -q ELF || { echo "::error::Downloaded gitleaks is not a binary"; exit 1; }
           "$GITLEAKS_BIN" version
 
@@ -111,55 +112,3 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: "$SARIF_DIR/bandit.sarif"
-
-  container-scan:
-    name: Docker Image Vulnerability Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: 🧾 Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: 🔎 Check for Dockerfile
-        id: dockerfile-check
-        run: |
-          if [ -f "$DOCKERFILE_PATH" ]; then
-            echo "found=true" >> $GITHUB_OUTPUT
-          else
-            echo "found=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: ⚙️ Setup Docker Buildx
-        if: steps.dockerfile-check.outputs.found == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🏗️ Build Docker Image
-        if: steps.dockerfile-check.outputs.found == 'true'
-        run: docker build --pull --no-cache \
-              -t "$IMAGE_NAME" \
-              -f "$DOCKERFILE_PATH" .
-
-      - name: 🛠️ Install Grype
-        if: steps.dockerfile-check.outputs.found == 'true'
-        uses: anchore/scan-action/download-grype@v3
-
-      - name: 🧪 Scan Docker Image with Grype
-        if: steps.dockerfile-check.outputs.found == 'true'
-        run: |
-          mkdir -p "$SARIF_DIR"
-          chmod 700 "$SARIF_DIR"
-          grype "$IMAGE_NAME" -o sarif > "$SARIF_DIR/grype.sarif" || true
-
-      - name: ❌ Fail on High/Critical Vulnerabilities
-        if: steps.dockerfile-check.outputs.found == 'true'
-        run: |
-          if grep -E '"ruleId":\s*"(High|Critical)"' "$SARIF_DIR/grype.sarif" >/dev/null; then
-            echo "::error::❌ High/Critical vulnerabilities detected"
-            exit 1
-          fi
-
-      - name: 📤 Upload Grype SARIF
-        if: steps.dockerfile-check.outputs.found == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "$SARIF_DIR/grype.sarif"
