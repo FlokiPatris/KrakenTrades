@@ -36,13 +36,17 @@ def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFram
         generate_trade_report_block(
             "IF ALL SOLD NOW:",
             {
-                TradeColumn.TRADE_PRICE.value: f"{snapshot.market_price} {snapshot.currency}"
-                if snapshot.market_price
-                else f"N/A {snapshot.currency}",
+                TradeColumn.TRADE_PRICE.value: (
+                    f"{snapshot.market_price} {snapshot.currency}"
+                    if snapshot.market_price
+                    else f"N/A {snapshot.currency}"
+                ),
                 TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.buy_volume} {snapshot.token}",
-                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.potential_value} {snapshot.currency}"
-                if snapshot.market_price
-                else f"N/A {snapshot.currency}",
+                TradeColumn.TRANSACTION_PRICE.value: (
+                    f"{snapshot.potential_value} {snapshot.currency}"
+                    if snapshot.market_price
+                    else f"N/A {snapshot.currency}"
+                ),
             },
         ),
         generate_trade_report_block(
@@ -56,9 +60,11 @@ def generate_trade_report_sheet(snapshot: TradeBreakdownSnapshot) -> pd.DataFram
             "IF REST SOLD NOW:",
             {
                 TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.remaining_volume} {snapshot.token}",
-                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.current_value} {snapshot.currency}"
-                if snapshot.market_price
-                else f"N/A {snapshot.currency}",
+                TradeColumn.TRANSACTION_PRICE.value: (
+                    f"{snapshot.current_value} {snapshot.currency}"
+                    if snapshot.market_price
+                    else f"N/A {snapshot.currency}"
+                ),
             },
         ),
     ]

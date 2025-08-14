@@ -123,9 +123,9 @@ def style_excel(output: Path) -> None:
     # === Sheet ordering ===
     custom_logger.info("🔀 Reordering sheets")
     wb._sheets.sort(
-        key=lambda s: 0
-        if s.title == "Portfolio"
-        else (1 if s.title == "Asset ROI" else 2)
+        key=lambda s: (
+            0 if s.title == "Portfolio" else (1 if s.title == "Asset ROI" else 2)
+        )
     )
 
     # Save workbook
