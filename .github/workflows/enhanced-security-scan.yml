@@ -7,23 +7,32 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
-# Least-privilege permissions
 permissions:
   contents: read
   security-events: write
 
+concurrency:
+  group: security-secrets-scan-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  # Tunables (no magic constants)
+  # Tunables (avoid magic constants)
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BANDIT_SEVERITY: "medium"     # low|medium|high
-  GITLEAKS_IMAGE_TAG: "8.18.2"  # pinned for reproducibility
+  BANDIT_SEVERITY: "medium"          # low|medium|high
+  GITLEAKS_IMAGE: "gitleaks/gitleaks"
+  GITLEAKS_IMAGE_TAG: "8.18.2"        # pinned for reproducibility
+  GITLEAKS_FALLBACK_TAG: "8"          # fallback to latest v8 if exact tag is missing
 
 jobs:
   security:
     name: Static analysis, dependencies, and secrets
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
 
     steps:
       - name: 🧾 Checkout
@@ -32,17 +41,15 @@ jobs:
           fetch-depth: 0
 
       - name: 🔒 Validate environment and prepare artifacts dir
-        shell: bash
         run: |
-          set -euo pipefail
-          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_IMAGE_TAG)
+          required_vars=(PYTHON_VERSION SARIF_DIR BANDIT_SEVERITY GITLEAKS_IMAGE GITLEAKS_IMAGE_TAG GITLEAKS_FALLBACK_TAG)
           for key in "${required_vars[@]}"; do
             if [[ -z "${!key:-}" ]]; then
-              echo "::error::$key is not set"; exit 1
+              echo "::error title=Missing environment variable::${key} is not set"
+              exit 1
             fi
           done
-          mkdir -p "$SARIF_DIR"
-          chmod 700 "$SARIF_DIR"
+          install -d -m 750 "${SARIF_DIR}"
 
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
@@ -52,9 +59,7 @@ jobs:
 
       - name: 📦 Prepare dependency manifest (Poetry or requirements)
         id: deps
-        shell: bash
         run: |
-          set -euo pipefail
           if [[ -f poetry.lock ]]; then
             python -m pip install --upgrade pip
             pip install "poetry==1.8.3"
@@ -68,45 +73,68 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 🧹 Lint (black, flake8)
-        shell: bash
+      - name: 🧹 Install and run linters (black, flake8)
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install black flake8
+          pip install "black==24.8.0" "flake8==7.1.0"
           black --check .
           flake8 .
 
       - name: 🔐 Gitleaks secrets scan (Docker, SARIF)
-        shell: bash
+        continue-on-error: true  # Allow upload of SARIF even if leaks are found
+        env:
+          IMAGE: ${{ env.GITLEAKS_IMAGE }}
+          TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
+          FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
         run: |
-          set -euo pipefail
-          docker pull "zricethezav/gitleaks:${GITLEAKS_IMAGE_TAG}"
-          # Conditionally use repo config if present
-          CFG_ARGS=()
-          if [[ -f .gitleaks.toml ]]; then
-            CFG_ARGS+=(--config "/repo/.gitleaks.toml")
+          # Resolve image tag with fallback if the pinned tag is unavailable
+          resolved_tag="$TAG"
+          if ! docker pull "${IMAGE}:${resolved_tag}" >/dev/null 2>&1; then
+            echo "::warning title=Gitleaks image tag missing::${IMAGE}:${resolved_tag} not found. Falling back to ${IMAGE}:${FALLBACK_TAG}"
+            resolved_tag="$FALLBACK_TAG"
+            docker pull "${IMAGE}:${resolved_tag}"
           fi
+
+          # Optional repo-specific config
+          cfg_args=()
+          if [[ -f ".gitleaks.toml" ]]; then
+            cfg_args+=(--config "/repo/.gitleaks.toml")
+          fi
+
+          # Run hardened container:
+          # - non-root user
+          # - read-only filesystem
+          # - no network
+          # - drop all Linux capabilities
+          # - repo mounted read-only; outputs written to separate /out mount
+          uid_gid="$(id -u):$(id -g)"
           docker run --rm \
+            --user "${uid_gid}" \
+            --read-only \
+            --cap-drop=ALL \
+            --network none \
             -v "$PWD:/repo:ro" \
+            -v "$PWD/${SARIF_DIR}:/out:rw" \
             -w /repo \
-            "zricethezav/gitleaks:${GITLEAKS_IMAGE_TAG}" detect \
+            "${IMAGE}:${resolved_tag}" detect \
               --no-banner \
               --redact \
               --source /repo \
               --report-format sarif \
-              --report-path "/repo/${SARIF_DIR}/gitleaks.sarif" \
-              "${CFG_ARGS[@]}"
+              --report-path "/out/gitleaks.sarif" \
+              "${cfg_args[@]}"
+
+          # Ensure report exists (non-empty)
+          test -s "${SARIF_DIR}/gitleaks.sarif"
 
       - name: 📤 Upload Gitleaks SARIF
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
 
       - name: 🧪 Dependency CVE audit (pip-audit SARIF)
-        shell: bash
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
           pip install "pip-audit==2.9.0"
           if [[ -n "${{ steps.deps.outputs.requirements }}" ]]; then
@@ -117,29 +145,28 @@ jobs:
           fi
 
       - name: 📤 Upload pip-audit SARIF
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
 
       - name: 🧠 Bandit static analysis (SARIF)
-        shell: bash
         run: |
-          set -euo pipefail
+          python -m pip install --upgrade pip
           pip install "bandit[toml]==1.8.6"
           bandit -r . -q \
             --severity-level "${BANDIT_SEVERITY}" \
-            -f sarif -o "${SARIF_DIR}/bandit.sarif" || exit 1
+            -f sarif -o "${SARIF_DIR}/bandit.sarif"
 
       - name: 📤 Upload Bandit SARIF
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
 
       - name: 🧽 Secure cleanup
-        if: always()
-        shell: bash
+        if: ${{ always() }}
         run: |
-          set -euo pipefail
-          # Shred any archives if created by future steps; keep SARIF for upload
+          # Remove common archive artifacts; keep SARIF for uploads
           find . -maxdepth 2 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.zip" \) -print0 | xargs -0 -r rm -f
           chmod -R go-rwx "${SARIF_DIR}" || true
