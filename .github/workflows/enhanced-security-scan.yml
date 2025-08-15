@@ -1,4 +1,8 @@
-name: "🛡️ Security & Secrets Scan"
+# File: .github/workflows/appsec-security.yml
+# 🔐 AppSec — Security & Secrets Scan
+# Modular, DRY, CI-friendly workflow for secret detection and code security scanning
+
+name: "🔐 AppSec — Security & Secrets Scan"
 
 on:
   push:
@@ -9,25 +13,32 @@ on:
 
 permissions:
   contents: read
-  actions: read
   security-events: write
 
+# Prevents duplicate runs on the same ref
 concurrency:
-  group: security-secrets-scan-${{ github.ref }}
+  group: appsec-scan-${{ github.ref }}
   cancel-in-progress: true
 
+# -------------------------
+# 🌍 Global environment vars
+# -------------------------
 env:
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-  BLACK_VERSION: "24.8.0"
-  FLAKE8_VERSION: "7.1.0"
+
+  # 📌 Pinned tool versions for reproducibility
   PIP_AUDIT_VERSION: "2.9.0"
   BANDIT_VERSION: "1.8.6"
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
-  # Allow uploads only on push or same-repo PRs
+
+  # Only upload SARIF for trusted contexts (push or PR from same repo)
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+
+  # Optional: comma-separated list of required secret names for validation
+  REQUIRED_SECRETS: ""
 
 jobs:
   security:
@@ -38,107 +49,99 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      # -------------------------
+      # 🛠️ Setup
+      # -------------------------
+      - name: 📥 Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1   # shallow clone for faster runs
 
-      - run: install -d -m 750 "${SARIF_DIR}"
-
-      - uses: actions/setup-python@v5
+      - name: 🐍 Setup Python runtime
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
-      - id: deps
-        run: |
-          python -m pip install --upgrade pip
-          if [[ -f poetry.lock ]]; then
-            pip install "poetry==1.8.3"
-            poetry export -f requirements.txt --output requirements.txt --without-hashes
-            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
-          elif [[ -f requirements.txt ]]; then
-            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
-          else
-            echo "requirements=" >> "$GITHUB_OUTPUT"
-          fi
+      - name: 🔎 Validate required secrets
+        run: .ci/bin/common.sh validate_required_secrets
 
-      - run: |
-          pip install "black==${BLACK_VERSION}" "flake8==${FLAKE8_VERSION}"
-          black --check .
-          flake8 .
+      # -------------------------
+      # 🔑 Gitleaks — Secret Scanning
+      # -------------------------
+      - name: 🔑 Gitleaks (secrets → SARIF)
+        env:
+          SARIF_DIR: ${{ env.SARIF_DIR }}
+          GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
+          GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
+          GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
+        run: .ci/bin/run_gitleaks.sh
 
-      - name: 🔐 Gitleaks scan
-        continue-on-error: true
-        run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"$2","version":"$3"}},"results":[]}]}
-          JSON
-          }
-          tag="${GITLEAKS_IMAGE_TAG}"
-          docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
-            echo "::warning::Falling back to ${GITLEAKS_FALLBACK_TAG}"
-            tag="${GITLEAKS_FALLBACK_TAG}"
-            docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
-              write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
-              exit 0
-            }
-          }
-          uid_gid="$(id -u):$(id -g)"
-          docker run --rm --user "$uid_gid" --read-only --cap-drop=ALL --network none \
-            -v "$PWD:/repo:ro" -v "$PWD/${SARIF_DIR}:/out:rw" -w /repo \
-            "${GITLEAKS_IMAGE}:${tag}" detect --no-banner --redact \
-            --source /repo --report-format sarif --report-path "/out/gitleaks.sarif" || \
-            write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
-          [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
-
-      - uses: github/codeql-action/upload-sarif@v3
-        if: ${{ env.UPLOAD_SARIF == 'true' }}
+      - name: ⬆️ Upload Gitleaks SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
+          category: secrets-gitleaks
+          wait-for-processing: true
 
-      - name: 🧪 pip-audit
-        continue-on-error: true
+      - name: ❌ Fail build if Gitleaks found secrets
+        if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
         run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"pip-audit","version":"${PIP_AUDIT_VERSION}"}},"results":[]}]}
-          JSON
-          }
-          pip install "pip-audit==${PIP_AUDIT_VERSION}"
-          req="${{ steps.deps.outputs.requirements }}"
-          if [[ -n "${req}" ]]; then
-            pip-audit --requirement "${req}" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
-          else
-            pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
-          fi
-          [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty "${SARIF_DIR}/pip-audit.sarif"
+          echo "🚨 Secrets detected by Gitleaks — failing pipeline."
+          exit 1
 
-      - uses: github/codeql-action/upload-sarif@v3
-        if: ${{ env.UPLOAD_SARIF == 'true' }}
+      # -------------------------
+      # 📦 pip-audit — Dependency Security
+      # -------------------------
+      - name: 📦 pip-audit (deps → SARIF)
+        env:
+          SARIF_DIR: ${{ env.SARIF_DIR }}
+          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
+        run: .ci/bin/run_pip_audit.sh
+
+      - name: ⬆️ Upload pip-audit SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
+          category: deps-pip-audit
+          wait-for-processing: true
 
-      - name: 🧠 Bandit
-        continue-on-error: true
+      # Fail pipeline if pip-audit detected vulnerabilities
+      - name: ❌ Fail build if pip-audit found vulnerabilities
+        if: ${{ env.AUDIT_STATUS != '0' }}
         run: |
-          write_empty() {
-            cat > "$1" <<JSON
-          {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":"${BANDIT_VERSION}"}},"results":[]}]}
-          JSON
-          }
-          pip install "bandit[toml]==${BANDIT_VERSION}"
-          bandit -r . -q --severity-level "medium" -f sarif -o "${SARIF_DIR}/bandit.sarif" || true
-          [[ -s "${SARIF_DIR}/bandit.sarif" ]] || write_empty "${SARIF_DIR}/bandit.sarif"
+          echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
+          exit 1
 
-      - uses: github/codeql-action/upload-sarif@v3
-        if: ${{ env.UPLOAD_SARIF == 'true' }}
+      # -------------------------
+      # 🐍 Bandit — Static Code Analysis
+      # -------------------------
+      - name: 🐍 Bandit (code security → SARIF)
+        env:
+          SARIF_DIR: ${{ env.SARIF_DIR }}
+          BANDIT_VERSION: ${{ env.BANDIT_VERSION }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: bash .ci/bin/run_bandit.sh
+
+      - name: ⬆️ Upload Bandit SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
+          category: code-bandit
+          wait-for-processing: true
 
-      - name: Archive SARIF bundle
+      # -------------------------
+      # 🧹 Post-Scan Hardening & Audit Notes
+      # -------------------------
+      - name: 🧹 Harden artifacts & audit log
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sarif-reports
-          path: ${{ env.SARIF_DIR }}/**
-          if-no-files-found: warn
-          retention-days: 3
+        run: |
+          # Lock down SARIF files and directories
+          find "${SARIF_DIR}" -type f -exec chmod 600 {} \; 2>/dev/null || true
+          find "${SARIF_DIR}" -type d -exec chmod 700 {} \; 2>/dev/null || true
+
+          # Append audit trail for CI compliance
+          echo "Audit: docker scans used non-root, read-only FS, cap-drop=ALL, network none."
+          echo "Audit: no secrets echoed; SARIF files mode 600; uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."

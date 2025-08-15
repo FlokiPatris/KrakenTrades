@@ -1,1 +1,14 @@
-poetry export -f requirements.txt --output requirements.txt --without-hashes
+# Core dependencies
+requests>=2.31.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+pydantic>=2.6.0,<3.0.0
+PyYAML>=6.0.1,<7.0.0
+pandas>=2.1.0,<3.0.0
+openpyxl>=3.1.2,<4.0.0
+pdfplumber>=0.10.2,<0.11.0
+
+# Dev & quality tools
+pytest>=8.0.0,<9.0.0
+black>=24.0.0,<25.0.0
+flake8>=7.0.0,<8.0.0
+mypy>=1.8.0,<2.0.0
