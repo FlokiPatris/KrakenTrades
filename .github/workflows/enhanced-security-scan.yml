@@ -10,7 +10,7 @@ on:
 
 permissions:
   contents: read
-  security-events: write
+  security-events: write  # required to upload SARIF
 
 concurrency:
   group: security-secrets-scan-${{ github.ref }}
@@ -26,7 +26,7 @@ env:
   GITLEAKS_FALLBACK_TAG: "latest"
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
   BASH_ENV: .ci/bash_env
-  REQUIRED_SECRETS: ""  # optional comma-separated list; e.g. "MY_TOKEN,OTHER_SECRET"
+  REQUIRED_SECRETS: ""  # optional comma-separated; e.g. "MY_TOKEN,OTHER_SECRET"
 
 jobs:
   security:
@@ -46,7 +46,7 @@ jobs:
         run: |
           install -d -m 750 .ci .ci/bin "${SARIF_DIR}"
 
-          # Global strict shell via BASH_ENV (DRY)
+          # Global strict shell (DRY) applied to all bash steps
           cat > "${BASH_ENV}" <<'BASHRC'
           set -Eeuo pipefail
           shopt -s lastpipe
@@ -54,10 +54,10 @@ jobs:
           export LC_ALL=C.UTF-8
           export LANG=C.UTF-8
           export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          trap 'code=$?; echo "::error file=${BASH_SOURCE:-workflow},line=${LINENO},title=Bash error::exit ${code}"; exit ${code}' ERR
+          trap 'c=$?; echo "::error file=${BASH_SOURCE:-workflow},line=${LINENO},title=Bash error::exit ${c}"; exit ${c}' ERR
           BASHRC
 
-          # SARIF utilities
+          # SARIF helpers
           cat > .ci/bin/sarif_utils.sh <<'BASH'
           set -Eeuo pipefail
           write_empty_sarif() {
@@ -140,17 +140,24 @@ jobs:
             fi
           fi
 
-      - name: Setup Python
+      # Think-outside-the-box cache fix:
+      # Use two mutually-exclusive setup steps so the cache post-job only runs when caching is enabled.
+      - name: Setup Python (with pip cache)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') != '' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          # Only enable pip caching if we actually have a requirements file
-          cache: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') != '' && 'pip' || '' }}
+          cache: pip
           cache-dependency-path: |
             **/requirements*.txt
             **/pyproject.toml
             **/setup.cfg
 
+      - name: Setup Python (no cache)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') == '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - id: deps
         name: Resolve Python dependencies for pip-audit
@@ -240,7 +247,7 @@ jobs:
           python .ci/bin/bandit_to_sarif.py
           harden_artifact "${SARIF_DIR}/bandit.sarif"
 
-          # Minimal hygiene for intermediate file
+          # Keep pip cache intact to avoid setup-python post-job warning
           rm -f -- "${BANDIT_JSON}"
 
       - uses: github/codeql-action/upload-sarif@v3
@@ -249,10 +256,9 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
           category: code-bandit
 
-      - name: Harden artifacts and cleanup
+      - name: Harden artifacts
         if: always()
         run: |
           chmod -R go= "${SARIF_DIR}" || true
-          rm -rf ~/.cache/pip || true
           echo "Audit: docker scans used non-root, read-only FS, cap-drop=ALL, network none."
           echo "Audit: no secrets echoed; SARIF files mode 600; uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
