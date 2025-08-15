@@ -256,19 +256,27 @@ jobs:
           category: secrets-gitleaks
           wait-for-processing: true
 
-
       - name: 📦 pip-audit (deps → SARIF)
         run: |
           source .ci/bin/sarif_utils.sh
           pip install --disable-pip-version-check --no-cache-dir "pip-audit==${PIP_AUDIT_VERSION}"
+
           req="${{ steps.deps.outputs.requirements }}"
+          audit_args=(--format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict)
+
+          set +e
           if [[ -n "${req}" ]]; then
-            pip-audit --requirement "${req}" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
+            pip-audit --requirement "${req}" "${audit_args[@]}"
           else
-            pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
+            pip-audit "${audit_args[@]}"
           fi
+          audit_status=$?
+          set -e
+
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "${PIP_AUDIT_VERSION}"
-          harden_artifact "${SARIF_DIR}/pip-audit.sarif"
+
+          # Save the exit code for later steps
+          echo "AUDIT_STATUS=$audit_status" >> $GITHUB_ENV
 
       - name: ⬆️ Upload pip-audit SARIF
         if: ${{ env.UPLOAD_SARIF == 'true' }}
@@ -277,6 +285,12 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
           category: deps-pip-audit
           wait-for-processing: true
+
+      - name: ❌ Fail build if vulnerabilities found
+        if: ${{ env.UPLOAD_SARIF == 'true' && env.AUDIT_STATUS != '0' }}
+        run: |
+          echo "Vulnerabilities detected by pip-audit. Failing job."
+          exit 1
 
       - name: 🐍 Bandit (code security → SARIF)
         env:
