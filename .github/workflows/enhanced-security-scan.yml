@@ -1,5 +1,5 @@
 # File: .github/workflows/appsec-security.yml
-# 🧠 14.8 — Clean, CI/CD-friendly, attacker-minded. Lean, documented, and secure-by-default.
+# 🧠 14.8 — Clean, CI/CD-friendly, attacker-minded, secure-by-default.
 
 name: "🔐 AppSec — Security & Secrets Scan"
 
@@ -75,6 +75,9 @@ jobs:
             chmod 600 "$1" 2>/dev/null || true
           }
           harden_artifact() { chmod 600 "$1" 2>/dev/null || true; }
+          json_to_sarif() { # <json_in> <sarif_out> <tool> <version>
+            python .ci/bin/pip_audit_to_sarif.py "$1" "$2" "$3" "$4"
+          }
           BASH
           chmod 750 .ci/bin/sarif_utils.sh
 
@@ -96,7 +99,6 @@ jobs:
           repo_root = os.environ.get(WORKSPACE_ENV, os.getcwd()).replace("\\", "/")
 
           def norm_repo_rel(p: str) -> str:
-            # Normalize to repo-relative URI (GitHub Code Scanning requirement)
             p = (p or "").replace("\\", "/")
             while p.startswith("./"):
               p = p[2:]
@@ -106,7 +108,6 @@ jobs:
                 return rel
               except Exception:
                 return os.path.basename(p)
-            # Strip leading repo root if it's embedded
             if p.startswith(repo_root.rstrip("/") + "/"):
               return p[len(repo_root.rstrip("/")) + 1 :]
             return p
@@ -178,6 +179,113 @@ jobs:
           PY
           chmod 750 .ci/bin/bandit_to_sarif.py
 
+          # 📦 pip-audit JSON ➜ SARIF (tolerant schema)
+          cat > .ci/bin/pip_audit_to_sarif.py <<'PY'
+          from __future__ import annotations
+          import json, os, sys
+          from typing import Any, Dict, List
+
+          def sev_level(s: str | None) -> str:
+            m = (s or "").lower()
+            if m in ("critical", "high"): return "error"
+            if m in ("medium",): return "warning"
+            return "note"
+
+          def main() -> int:
+            if len(sys.argv) < 5:
+              print("usage: pip_audit_to_sarif.py <json_in> <sarif_out> <tool> <version>", file=sys.stderr)
+              return 2
+            jpath, spath, tool, ver = sys.argv[1:5]
+            artifact = os.environ.get("PIP_AUDIT_ARTIFACT_URI", "environment")
+
+            try:
+              with open(jpath, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            except Exception:
+              data = []
+
+            # Support both list root and {"dependencies": [...]} root
+            if isinstance(data, dict):
+              deps = data.get("dependencies") or []
+            else:
+              deps = data or []
+
+            rules: Dict[str, Dict[str, Any]] = {}
+            results: List[Dict[str, Any]] = []
+
+            for dep in deps:
+              name = dep.get("name") or "unknown"
+              version = dep.get("version") or "unknown"
+              vulns = dep.get("vulns") or []
+              for v in vulns:
+                vid = (v.get("id") or "VULN").strip()
+                aliases = v.get("aliases") or []
+                summary = v.get("description") or v.get("summary") or ""
+                adv = v.get("advisory") or {}
+                if not summary and isinstance(adv, dict):
+                  summary = adv.get("summary") or adv.get("description") or ""
+                refs = v.get("references") or adv.get("references") or []
+                severity = (v.get("severity") or adv.get("severity") or "").lower()
+                fixes = v.get("fix_versions") or []
+
+                if vid not in rules:
+                  rules[vid] = {
+                    "id": vid,
+                    "name": vid,
+                    "shortDescription": {"text": summary or vid},
+                    "helpUri": refs[0] if isinstance(refs, list) and refs else "",
+                    "properties": {"aliases": aliases},
+                    "defaultConfiguration": {"level": sev_level(severity)},
+                  }
+
+                msg = f"{name} {version}: {vid}"
+                if fixes:
+                  msg += f" | fix_versions={', '.join(fixes)}"
+                if summary:
+                  msg += f" | {summary}"
+
+                results.append({
+                  "ruleId": vid,
+                  "level": sev_level(severity),
+                  "message": {"text": msg},
+                  "locations": [{
+                    "physicalLocation": {
+                      "artifactLocation": {"uri": artifact},
+                      "region": {"startLine": 1}
+                    }
+                  }],
+                  "properties": {
+                    "package": name,
+                    "version": version,
+                    "severity": severity.upper() if severity else "UNKNOWN",
+                    "aliases": aliases,
+                    "fix_versions": fixes,
+                  }
+                })
+
+            out = {
+              "version": "2.1.0",
+              "runs": [{
+                "tool": {"driver": {
+                  "name": tool,
+                  "version": ver,
+                  "informationUri": "https://github.com/pypa/pip-audit",
+                  "rules": list(rules.values()),
+                }},
+                "results": results
+              }]
+            }
+
+            os.makedirs(os.path.dirname(spath) or ".", exist_ok=True)
+            with open(spath, "w", encoding="utf-8") as fh:
+              json.dump(out, fh, indent=2)
+            return 0
+
+          if __name__ == "__main__":
+            raise SystemExit(main())
+          PY
+          chmod 750 .ci/bin/pip_audit_to_sarif.py
+
       - name: 🔐 Validate required secrets
         run: |
           if [[ -n "${REQUIRED_SECRETS}" ]]; then
@@ -199,20 +307,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - id: deps
-        name: 📦 Resolve Python dependencies (for pip-audit)
-        run: |
-          python -m pip install --upgrade pip
-          if [[ -f poetry.lock ]]; then
-            pip install "poetry==1.8.3"
-            poetry export -f requirements.txt --output requirements.txt --without-hashes
-            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
-          elif [[ -f requirements.txt ]]; then
-            echo "requirements=requirements.txt" >> "$GITHUB_OUTPUT"
-          else
-            echo "requirements=" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: 🔑 Gitleaks (secrets → SARIF)
         run: |
           source .ci/bin/sarif_utils.sh
@@ -227,7 +321,6 @@ jobs:
             fi
           fi
 
-          # Fail with exit code 1 if secrets are found
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             --read-only \
@@ -257,39 +350,39 @@ jobs:
           wait-for-processing: true
 
       # 📦 pip-audit (dependency vulnerabilities → JSON → SARIF, with fail-on-findings)
-      - name: 📦 Install pip-audit (latest available)
+      - name: 📦 Install pip-audit
         run: |
-          pip install --disable-pip-version-check --no-cache-dir "pip-audit==2.9.0"
+          python -m pip install --upgrade pip
+          pip install --disable-pip-version-check --no-cache-dir "pip-audit==${PIP_AUDIT_VERSION}"
 
-      - name: 📦 Run pip-audit (JSON) and convert to SARIF
+      - name: 📦 Run pip-audit (requirements.txt) → SARIF
         run: |
           source .ci/bin/sarif_utils.sh
-
           mkdir -p "${SARIF_DIR}"
-          req="${{ steps.deps.outputs.requirements }}"
-          audit_args=(--format json --output "${SARIF_DIR}/pip-audit.json" --strict)
 
-          # Run audit without killing workflow immediately on nonzero exit
-          set +e
-          if [[ -n "${req}" ]]; then
-            pip-audit --requirement "${req}" "${audit_args[@]}"
+          json_out="${SARIF_DIR}/pip-audit.json"
+          sarif_out="${SARIF_DIR}/pip-audit.sarif"
+          audit_status=0
+
+          if [[ -f requirements.txt ]]; then
+            pip-audit -r requirements.txt --format json --output "${json_out}" --strict
+            audit_status=$?
+            export PIP_AUDIT_ARTIFACT_URI="requirements.txt"
           else
-            pip-audit "${audit_args[@]}"
+            pip-audit --format json --output "${json_out}" --strict
+            audit_status=$?
+            export PIP_AUDIT_ARTIFACT_URI="environment"
           fi
-          audit_status=$?
-          set -e
 
-          # Convert JSON → SARIF (uses helper function or script in sarif_utils.sh)
-          json_to_sarif "${SARIF_DIR}/pip-audit.json" "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "2.9.0"
+          if [[ -s "${json_out}" ]]; then
+            json_to_sarif "${json_out}" "${sarif_out}" "pip-audit" "${PIP_AUDIT_VERSION}"
+          else
+            write_empty_sarif "${sarif_out}" "pip-audit" "${PIP_AUDIT_VERSION}"
+          fi
 
-          # Ensure SARIF exists even if no vulns found
-          [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || \
-            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "2.9.0"
+          echo "AUDIT_STATUS=${audit_status}" >> "$GITHUB_ENV"
+          harden_artifact "${sarif_out}"
 
-          echo "AUDIT_STATUS=$audit_status" >> "$GITHUB_ENV"
-
-          # Restrict permissions on SARIF artifact
-          harden_artifact "${SARIF_DIR}/pip-audit.sarif"
 
       - name: ⬆️ Upload pip-audit SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
@@ -305,10 +398,8 @@ jobs:
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
 
-
       - name: 🐍 Bandit (code security → SARIF)
         env:
-          # Pass workspace for path normalization inside converter
           GITHUB_WORKSPACE: ${{ github.workspace }}
         run: |
           source .ci/bin/sarif_utils.sh
@@ -317,14 +408,12 @@ jobs:
           tmpdir="${RUNNER_TEMP:-/tmp}"
           BANDIT_JSON="$(mktemp -p "${tmpdir}" bandit-XXXX.json)"
 
-          # 🔎 Scan from repo root; include low severity while stabilizing pipeline
           bandit -r "${GITHUB_WORKSPACE:-.}" \
                  --severity-level low \
                  -f json \
                  -o "${BANDIT_JSON}" \
                  -q || true
 
-          # 🧭 Quick visibility (don’t leak code): count + rule IDs only
           python - <<'PY'
           import json, os
           p = os.environ.get("BANDIT_JSON","")
