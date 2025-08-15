@@ -122,7 +122,7 @@ jobs:
           SARIF_DIR: ${{ env.SARIF_DIR }}
           BANDIT_VERSION: ${{ env.BANDIT_VERSION }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: .ci/bin/run_bandit.sh
+        run: bash .ci/bin/run_bandit.sh
 
       - name: ⬆️ Upload Bandit SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
