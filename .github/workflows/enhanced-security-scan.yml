@@ -216,15 +216,18 @@ jobs:
       - name: 🔑 Gitleaks (secrets → SARIF)
         run: |
           source .ci/bin/sarif_utils.sh
+
           tag="${GITLEAKS_IMAGE_TAG}"
-          docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
+          if ! docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1; then
             echo "::warning::Gitleaks fallback to ${GITLEAKS_FALLBACK_TAG}"
             tag="${GITLEAKS_FALLBACK_TAG}"
-            docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
+            if ! docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1; then
               write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
               exit 0
-            }
-          }
+            fi
+          fi
+
+          # Fail with exit code 1 if secrets are found
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             --read-only \
@@ -236,18 +239,23 @@ jobs:
             "${GITLEAKS_IMAGE}:${tag}" detect --no-banner \
               --source /repo \
               --redact \
+              --exit-code 1 \
               --report-format sarif \
-              --report-path "/out/gitleaks.sarif" || true
-          [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+              --report-path "/out/gitleaks.sarif"
+
+          [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || \
+            write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
+
           harden_artifact "${SARIF_DIR}/gitleaks.sarif"
 
       - name: ⬆️ Upload Gitleaks SARIF
-        if: ${{ env.UPLOAD_SARIF == 'true' }}
+        if: always() && env.UPLOAD_SARIF == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
           category: secrets-gitleaks
           wait-for-processing: true
+
 
       - name: 📦 pip-audit (deps → SARIF)
         run: |
