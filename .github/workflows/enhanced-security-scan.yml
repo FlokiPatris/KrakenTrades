@@ -144,7 +144,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: ${{ hashFiles('**/requirements*.txt') != '' && 'pip' || '' }}
+          # Only enable pip caching if we actually have a requirements file
+          cache: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') != '' && 'pip' || '' }}
           cache-dependency-path: |
             **/requirements*.txt
             **/pyproject.toml
