@@ -214,7 +214,6 @@ jobs:
           fi
 
       - name: 🔑 Gitleaks (secrets → SARIF)
-        continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
 
