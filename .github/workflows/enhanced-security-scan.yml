@@ -63,7 +63,30 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: 🔎 Validate required secrets
-        run: .ci/bin/common.sh validate_required_secrets
+        run: bash .ci/bin/common.sh validate_required_secrets
+
+      # -------------------------
+      # 🔍 Trivy — FS scan → SARIF
+      # -------------------------
+      - name: 🔍 Trivy (filesystem)
+        env:
+          SARIF_DIR: ${{ env.SARIF_DIR }}
+          SARIF_FILE: trivy.sarif
+          TRIVY_VERSION: "0.51.4"
+          TRIVY_SEVERITY: "HIGH,CRITICAL"
+          TRIVY_TARGET: "."
+          TRIVY_MODE: fs
+          TRIVY_IGNORE_UNFIXED: "true"
+          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE || 0 }} # 0 = do not fail build, 1 = fail if findings match severity
+        run: bash .ci/bin/run_trivy.sh
+
+      - name: ⬆️ Upload Trivy SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_DIR }}/trivy.sarif
+          category: sec-trivy
+          wait-for-processing: true
 
       # -------------------------
       # 🔑 Gitleaks — Secret Scanning
@@ -74,7 +97,7 @@ jobs:
           GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
           GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
           GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
-        run: .ci/bin/run_gitleaks.sh
+        run: bash .ci/bin/run_gitleaks.sh
 
       - name: ⬆️ Upload Gitleaks SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
@@ -97,7 +120,7 @@ jobs:
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
           PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
-        run: .ci/bin/run_pip_audit.sh
+        run: bash .ci/bin/run_pip_audit.sh
 
       - name: ⬆️ Upload pip-audit SARIF
         if: always() && env.UPLOAD_SARIF == 'true'

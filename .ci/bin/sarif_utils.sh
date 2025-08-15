@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # sarif_utils.sh — SARIF helper functions for CI/CD
 # Ensures predictable shell behavior, minimal permissions, and no secrets leakage.
 
