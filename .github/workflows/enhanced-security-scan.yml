@@ -233,22 +233,40 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
           category: deps-pip-audit
 
-      - name: "Bandit (code security → SARIF) — pipe-safe"
+      - name: "🐍 Bandit (code security → SARIF)"
         continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
-          pip install "bandit[toml]==${BANDIT_VERSION}"
 
+          # Install pinned Bandit with pyproject.toml awareness
+          pip install --disable-pip-version-check --no-cache-dir \
+            "bandit[toml]==${BANDIT_VERSION}"
+
+          # Create temp file for Bandit JSON
           tmpdir="${RUNNER_TEMP:-/tmp}"
           BANDIT_JSON="$(mktemp -p "${tmpdir}" bandit-XXXX.json)"
-          bandit -r . -q --severity-level "medium" -f json -o "${BANDIT_JSON}" || true
 
+          # Always scan from repo root to avoid path mismatches
+          bandit -r "${GITHUB_WORKSPACE:-.}" \
+                 --severity-level medium \
+                 -f json \
+                 -o "${BANDIT_JSON}" \
+                 -q || true
+
+          # Ensure the JSON file exists, even if Bandit found nothing
+          [[ -s "${BANDIT_JSON}" ]] || write_empty_sarif \
+            "${SARIF_DIR}/bandit.sarif" "bandit" "${BANDIT_VERSION}"
+
+          # Convert JSON → SARIF
           export BANDIT_JSON_PATH="${BANDIT_JSON}"
           python .ci/bin/bandit_to_sarif.py
+
+          # Lock down permissions
           harden_artifact "${SARIF_DIR}/bandit.sarif"
 
-          # Keep pip cache intact to avoid setup-python post-job warning
+          # Clean up temp
           rm -f -- "${BANDIT_JSON}"
+
 
       - uses: github/codeql-action/upload-sarif@v3
         if: ${{ env.UPLOAD_SARIF == 'true' }}
