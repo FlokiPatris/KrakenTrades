@@ -1,5 +1,7 @@
 # File: .github/workflows/appsec-security.yml
-name: "AppSec — Security and secrets scan"
+# 🧠 14.8 — Clean, CI/CD-friendly, attacker-minded. Lean, documented, and secure-by-default.
+
+name: "🔐 AppSec — Security & Secrets Scan"
 
 on:
   push:
@@ -10,23 +12,32 @@ on:
 
 permissions:
   contents: read
-  security-events: write  # required to upload SARIF
+  security-events: write  # 🛡️ needed for SARIF uploads
 
 concurrency:
-  group: security-secrets-scan-${{ github.ref }}
+  group: appsec-scan-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  # 🔧 Centralized configuration (no magic constants)
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
+
+  # 📦 Tool versions (pin for reproducibility)
   PIP_AUDIT_VERSION: "2.9.0"
   BANDIT_VERSION: "1.8.6"
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
+
+  # 🔄 Upload SARIF for trusted contexts (avoid exfil in forks)
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+
+  # 🧰 Shell profile for strict mode; CI helpers live in .ci
   BASH_ENV: .ci/bash_env
-  REQUIRED_SECRETS: ""  # optional comma-separated; e.g. "MY_TOKEN,OTHER_SECRET"
+
+  # 🔐 Optional: comma-separated required secrets; fail early if missing (e.g. "SNYK_TOKEN,MY_PAT")
+  REQUIRED_SECRETS: ""
 
 jobs:
   security:
@@ -37,99 +48,142 @@ jobs:
         shell: bash
 
     steps:
-      - name: Checkout
+      - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 1  # ⏩ faster, less surface
 
-      - name: Initialize shell and helpers
+      - name: ⚙️ Init shell + helpers
         run: |
-          install -d -m 750 .ci .ci/bin "${SARIF_DIR}"
+          mkdir -p .ci/bin "${SARIF_DIR}"
 
-          # Global strict shell (DRY) applied to all bash steps
+          # 🧱 Strict, predictable shell
           cat > "${BASH_ENV}" <<'BASHRC'
           set -Eeuo pipefail
           shopt -s lastpipe
           umask 077
           export LC_ALL=C.UTF-8
           export LANG=C.UTF-8
-          export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          trap 'c=$?; echo "::error file=${BASH_SOURCE:-workflow},line=${LINENO},title=Bash error::exit ${c}"; exit ${c}' ERR
+          trap 'c=$?; echo "::error title=Bash error,file=${BASH_SOURCE:-workflow},line=${LINENO}::exit ${c}"; exit ${c}' ERR
           BASHRC
 
-          # SARIF helpers
+          # 📄 SARIF helpers
           cat > .ci/bin/sarif_utils.sh <<'BASH'
           set -Eeuo pipefail
-          write_empty_sarif() {
-            # Args: <file> <tool> <version>
+          write_empty_sarif() { # <file> <tool> <version>
             printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' "$2" "$3" > "$1"
-            chmod 600 "$1"
+            chmod 600 "$1" 2>/dev/null || true
           }
           harden_artifact() { chmod 600 "$1" 2>/dev/null || true; }
           BASH
           chmod 750 .ci/bin/sarif_utils.sh
 
-          # Bandit JSON -> SARIF converter (avoids stdout pipe BrokenPipeError)
+          # 🐍 Bandit JSON ➜ SARIF (with path normalization for GitHub matching)
           cat > .ci/bin/bandit_to_sarif.py <<'PY'
-          import json, os, sys
-          json_path = os.environ.get("BANDIT_JSON_PATH", "")
-          out_dir = os.environ.get("SARIF_DIR", "sarif-reports")
+          from __future__ import annotations
+          import json, os
+          from typing import Any, Dict, List
+
+          JSON_ENV = "BANDIT_JSON_PATH"
+          OUT_DIR_ENV = "SARIF_DIR"
+          VER_ENV = "BANDIT_VERSION"
+          WORKSPACE_ENV = "GITHUB_WORKSPACE"
+
+          json_path = os.environ.get(JSON_ENV, "")
+          out_dir = os.environ.get(OUT_DIR_ENV, "sarif-reports")
           out_file = os.path.join(os.getcwd(), out_dir, "bandit.sarif")
-          bandit_ver = os.environ.get("BANDIT_VERSION", "unknown")
+          bandit_ver = os.environ.get(VER_ENV, "unknown")
+          repo_root = os.environ.get(WORKSPACE_ENV, os.getcwd()).replace("\\", "/")
+
+          def norm_repo_rel(p: str) -> str:
+            # Normalize to repo-relative URI (GitHub Code Scanning requirement)
+            p = (p or "").replace("\\", "/")
+            while p.startswith("./"):
+              p = p[2:]
+            if os.path.isabs(p):
+              try:
+                rel = os.path.relpath(p, repo_root).replace("\\", "/")
+                return rel
+              except Exception:
+                return os.path.basename(p)
+            # Strip leading repo root if it's embedded
+            if p.startswith(repo_root.rstrip("/") + "/"):
+              return p[len(repo_root.rstrip("/")) + 1 :]
+            return p
+
           try:
-              with open(json_path, "r", encoding="utf-8") as fh:
-                  data = json.load(fh)
+            with open(json_path, "r", encoding="utf-8") as fh:
+              data: Dict[str, Any] = json.load(fh)
           except Exception:
-              data = {}
-          results = data.get("results") or []
-          rules = {}
+            data = {}
+
+          results: List[Dict[str, Any]] = data.get("results") or []
+          rules: Dict[str, Dict[str, Any]] = {}
           for r in results:
-              tid = r.get("test_id") or "BANDIT"
-              if tid not in rules:
-                  rules[tid] = {
-                      "id": tid,
-                      "name": r.get("test_name") or tid,
-                      "shortDescription": {"text": r.get("test_name") or tid},
-                      "helpUri": r.get("more_info") or "",
-                      "defaultConfiguration": {"level": "warning"},
-                  }
-          def lvl(s): return {"high":"error","medium":"warning"}.get((s or "").lower(),"note")
-          sarif_res = [{
+            tid = (r.get("test_id") or "BANDIT").strip()
+            name = r.get("test_name") or tid
+            if tid not in rules:
+              rules[tid] = {
+                "id": tid,
+                "name": name,
+                "shortDescription": {"text": name},
+                "helpUri": r.get("more_info") or "",
+                "defaultConfiguration": {"level": "warning"},
+              }
+
+          def sev_level(s: str | None) -> str:
+            m = (s or "").lower()
+            if m == "high": return "error"
+            if m == "medium": return "warning"
+            return "note"
+
+          sarif_results: List[Dict[str, Any]] = []
+          for r in results:
+            uri = norm_repo_rel(r.get("filename") or "")
+            start_line = r.get("line_number") or 1
+            sarif_results.append({
               "ruleId": (r.get("test_id") or "BANDIT"),
-              "level": lvl(r.get("issue_severity")),
+              "level": sev_level(r.get("issue_severity")),
               "message": {"text": r.get("issue_text") or "Bandit issue"},
               "locations": [{
-                  "physicalLocation": {
-                      "artifactLocation": {"uri": (r.get("filename") or "").replace("\\","/")},
-                      "region": {"startLine": int(r.get("line_number") or 1)}
-                  }
+                "physicalLocation": {
+                  "artifactLocation": {"uri": uri},
+                  "region": {"startLine": max(1, int(start_line))}
+                }
               }],
-              "properties": {"tags": ["bandit", r.get("test_name") or ""]}
-          } for r in results]
+              "properties": {
+                "tags": ["bandit", (r.get("test_name") or "").strip()],
+                "severity": (r.get("issue_severity") or "").upper(),
+                "confidence": (r.get("issue_confidence") or "").upper(),
+                "cwe": (r.get("issue_cwe") or {}).get("id")
+              }
+            })
+
           out = {
-              "version": "2.1.0",
-              "runs": [{
-                  "tool": {"driver": {
-                      "name": "bandit",
-                      "version": bandit_ver,
-                      "informationUri": "https://bandit.readthedocs.io/",
-                      "rules": list(rules.values())
-                  }},
-                  "results": sarif_res
-              }]
+            "version": "2.1.0",
+            "runs": [{
+              "tool": {"driver": {
+                "name": "bandit",
+                "version": bandit_ver,
+                "informationUri": "https://bandit.readthedocs.io/",
+                "rules": list(rules.values()),
+              }},
+              "results": sarif_results
+            }]
           }
+
           os.makedirs(out_dir, exist_ok=True)
           with open(out_file, "w", encoding="utf-8") as fh:
-              json.dump(out, fh, indent=2)
+            json.dump(out, fh, indent=2)
           PY
           chmod 750 .ci/bin/bandit_to_sarif.py
 
-      - name: Validate required secrets
+      - name: 🔐 Validate required secrets
         run: |
           if [[ -n "${REQUIRED_SECRETS}" ]]; then
-            IFS=',' read -r -a keys <<< "${REQUIRED_SECRETS}"
+            IFS=',' read -r -a _keys <<< "${REQUIRED_SECRETS}"
             missing=()
-            for raw in "${keys[@]}"; do
+            for raw in "${_keys[@]}"; do
               key="${raw//[[:space:]]/}"
               [[ -z "${key}" ]] && continue
               [[ -z "${!key-}" ]] && missing+=("${key}")
@@ -140,27 +194,13 @@ jobs:
             fi
           fi
 
-      # Think-outside-the-box cache fix:
-      # Use two mutually-exclusive setup steps so the cache post-job only runs when caching is enabled.
-      - name: Setup Python (with pip cache)
-        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') != '' }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            **/requirements*.txt
-            **/pyproject.toml
-            **/setup.cfg
-
-      - name: Setup Python (no cache)
-        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.cfg') == '' }}
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - id: deps
-        name: Resolve Python dependencies for pip-audit
+        name: 📦 Resolve Python dependencies (for pip-audit)
         run: |
           python -m pip install --upgrade pip
           if [[ -f poetry.lock ]]; then
@@ -173,11 +213,10 @@ jobs:
             echo "requirements=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: "Gitleaks (secrets scan → SARIF)"
+      - name: 🔑 Gitleaks (secrets → SARIF)
         continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
-
           tag="${GITLEAKS_IMAGE_TAG}"
           docker pull "${GITLEAKS_IMAGE}:${tag}" >/dev/null 2>&1 || {
             echo "::warning::Gitleaks fallback to ${GITLEAKS_FALLBACK_TAG}"
@@ -187,7 +226,6 @@ jobs:
               exit 0
             }
           }
-
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             --read-only \
@@ -197,86 +235,94 @@ jobs:
             -v "$PWD/${SARIF_DIR}:/out:rw" \
             -w /repo \
             "${GITLEAKS_IMAGE}:${tag}" detect --no-banner \
-            --source /repo \
-            --redact \
-            --report-format sarif \
-            --report-path "/out/gitleaks.sarif" || true
-
+              --source /repo \
+              --redact \
+              --report-format sarif \
+              --report-path "/out/gitleaks.sarif" || true
           [[ -s "${SARIF_DIR}/gitleaks.sarif" ]] || write_empty_sarif "${SARIF_DIR}/gitleaks.sarif" "gitleaks" "$tag"
           harden_artifact "${SARIF_DIR}/gitleaks.sarif"
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - name: ⬆️ Upload Gitleaks SARIF
         if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
           category: secrets-gitleaks
+          wait-for-processing: true
 
-      - name: "pip-audit (dependency vulns → SARIF)"
+      - name: 📦 pip-audit (deps → SARIF)
         continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
-          pip install "pip-audit==${PIP_AUDIT_VERSION}"
-
+          pip install --disable-pip-version-check --no-cache-dir "pip-audit==${PIP_AUDIT_VERSION}"
           req="${{ steps.deps.outputs.requirements }}"
           if [[ -n "${req}" ]]; then
             pip-audit --requirement "${req}" --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           else
             pip-audit --format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict || true
           fi
-
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "${PIP_AUDIT_VERSION}"
           harden_artifact "${SARIF_DIR}/pip-audit.sarif"
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - name: ⬆️ Upload pip-audit SARIF
         if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
           category: deps-pip-audit
+          wait-for-processing: true
 
-      - name: "🐍 Bandit (code security → SARIF)"
+      - name: 🐍 Bandit (code security → SARIF)
         continue-on-error: true
+        env:
+          # Pass workspace for path normalization inside converter
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         run: |
           source .ci/bin/sarif_utils.sh
+          pip install --disable-pip-version-check --no-cache-dir "bandit[toml]==${BANDIT_VERSION}"
 
-          # Install pinned Bandit with pyproject.toml awareness
-          pip install --disable-pip-version-check --no-cache-dir \
-            "bandit[toml]==${BANDIT_VERSION}"
-
-          # Create temp file for Bandit JSON
           tmpdir="${RUNNER_TEMP:-/tmp}"
           BANDIT_JSON="$(mktemp -p "${tmpdir}" bandit-XXXX.json)"
 
-          # Always scan from repo root to avoid path mismatches
+          # 🔎 Scan from repo root; include low severity while stabilizing pipeline
           bandit -r "${GITHUB_WORKSPACE:-.}" \
-                 --severity-level medium \
+                 --severity-level low \
                  -f json \
                  -o "${BANDIT_JSON}" \
                  -q || true
 
-          # Ensure the JSON file exists, even if Bandit found nothing
-          [[ -s "${BANDIT_JSON}" ]] || write_empty_sarif \
-            "${SARIF_DIR}/bandit.sarif" "bandit" "${BANDIT_VERSION}"
+          # 🧭 Quick visibility (don’t leak code): count + rule IDs only
+          python - <<'PY'
+          import json, os
+          p = os.environ.get("BANDIT_JSON","")
+          try:
+              with open(p,"r",encoding="utf-8") as f:
+                  d = json.load(f)
+              res = d.get("results") or []
+              print(f"::notice title=Bandit::results={len(res)}")
+              for r in res[:5]:
+                  print(f"::notice title=Bandit sample::{r.get('test_id')} {r.get('issue_severity')} {r.get('filename')}")
+          except Exception as e:
+              print(f"::warning title=Bandit JSON parse failed::{e}")
+          PY
 
-          # Convert JSON → SARIF
           export BANDIT_JSON_PATH="${BANDIT_JSON}"
           python .ci/bin/bandit_to_sarif.py
-
-          # Lock down permissions
           harden_artifact "${SARIF_DIR}/bandit.sarif"
 
-          # Clean up temp
           rm -f -- "${BANDIT_JSON}"
 
-
-      - uses: github/codeql-action/upload-sarif@v3
+      - name: ⬆️ Upload Bandit SARIF
         if: ${{ env.UPLOAD_SARIF == 'true' }}
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
           category: code-bandit
+          wait-for-processing: true
 
-      - name: Harden artifacts
+      - name: 🧹 Harden artifacts & audit log
         if: always()
         run: |
-          chmod -R go= "${SARIF_DIR}" || true
+          chmod -R go= "${SARIF_DIR}" 2>/dev/null || true
           echo "Audit: docker scans used non-root, read-only FS, cap-drop=ALL, network none."
           echo "Audit: no secrets echoed; SARIF files mode 600; uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
