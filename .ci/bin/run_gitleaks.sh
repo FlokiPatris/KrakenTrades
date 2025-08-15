@@ -1,5 +1,3 @@
-# File: .ci/bin/run_gitleaks.sh
-#!/usr/bin/env bash
 # Safe Docker wrapper for Gitleaks → SARIF with exit-code capture
 
 set -Eeuo pipefail

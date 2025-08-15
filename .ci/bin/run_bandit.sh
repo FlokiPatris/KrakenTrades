@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Purpose: Run Bandit, convert findings to SARIF, and keep CI green.
 # Behavior: Non-blocking; outputs SARIF for GitHub Security tab.
 # CI: Strict shell, secure perms, minimal noise.

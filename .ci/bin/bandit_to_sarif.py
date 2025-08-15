@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Purpose: Convert Bandit JSON output to GitHub SARIF with path normalization,
          preserving severity and rule metadata so results appear in the

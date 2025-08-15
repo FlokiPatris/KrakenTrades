@@ -1,5 +1,3 @@
-# File: .ci/bin/run_pip_audit.sh
-#!/usr/bin/env bash
 # Install + run pip-audit, convert to SARIF, export AUDIT_STATUS
 
 set -Eeuo pipefail

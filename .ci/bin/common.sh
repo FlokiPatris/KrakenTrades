@@ -1,5 +1,3 @@
-# File: .ci/bin/common.sh
-#!/usr/bin/env bash
 # Strict shell, logging, secret validation, secure FS helpers
 
 set -Eeuo pipefail

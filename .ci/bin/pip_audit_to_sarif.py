@@ -1,4 +1,3 @@
-# File: .ci/bin/pip_audit_to_sarif.py
 from __future__ import annotations
 import json, os, sys
 from typing import Any, Dict, List
