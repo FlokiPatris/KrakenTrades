@@ -144,11 +144,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
+          cache: ${{ hashFiles('**/requirements*.txt') != '' && 'pip' || '' }}
           cache-dependency-path: |
             **/requirements*.txt
             **/pyproject.toml
             **/setup.cfg
+
 
       - id: deps
         name: Resolve Python dependencies for pip-audit
