@@ -256,20 +256,19 @@ jobs:
           category: secrets-gitleaks
           wait-for-processing: true
 
-
       # 📦 pip-audit (dependency vulnerabilities → SARIF, with fail-on-findings)
-      - name: 📦 pip-audit (deps → SARIF)
+      - name: 📦 Install pip-audit (latest with SARIF support)
+        run: |
+          pip install --disable-pip-version-check --no-cache-dir "pip-audit>=2.10.0"
+
+      - name: 📦 Run pip-audit and generate SARIF
         run: |
           source .ci/bin/sarif_utils.sh
 
-          # Install pinned pip-audit
-          pip install --disable-pip-version-check --no-cache-dir "pip-audit==${PIP_AUDIT_VERSION}"
-
-          # Pick up requirements from deps step (Poetry export or existing file)
+          mkdir -p "${SARIF_DIR}"
           req="${{ steps.deps.outputs.requirements }}"
           audit_args=(--format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict)
 
-          # Run audit, capture exit without killing workflow immediately
           set +e
           if [[ -n "${req}" ]]; then
             pip-audit --requirement "${req}" "${audit_args[@]}"
@@ -279,17 +278,15 @@ jobs:
           audit_status=$?
           set -e
 
-          # Ensure SARIF exists even if no vulns (GitHub Code Scanning expects a file)
+          # Ensure SARIF exists even if no vulns found
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || \
-            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "${PIP_AUDIT_VERSION}"
+            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "$(pip-audit --version)"
 
-          # Store status for later fail step
           echo "AUDIT_STATUS=$audit_status" >> "$GITHUB_ENV"
 
           # Restrict permissions on SARIF artifact
           harden_artifact "${SARIF_DIR}/pip-audit.sarif"
 
-      # ⬆️ Upload SARIF regardless of audit result
       - name: ⬆️ Upload pip-audit SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
         uses: github/codeql-action/upload-sarif@v3
@@ -298,12 +295,12 @@ jobs:
           category: deps-pip-audit
           wait-for-processing: true
 
-      # ❌ Fail build if vulnerabilities were found (fail-fast mode)
       - name: ❌ Fail build if pip-audit found vulnerabilities
         if: ${{ env.AUDIT_STATUS != '0' }}
         run: |
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
+
 
 
       - name: 🐍 Bandit (code security → SARIF)
