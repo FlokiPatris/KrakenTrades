@@ -84,6 +84,12 @@ jobs:
           category: secrets-gitleaks
           wait-for-processing: true
 
+      - name: ❌ Fail build if Gitleaks found secrets
+        if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
+        run: |
+          echo "🚨 Secrets detected by Gitleaks — failing pipeline."
+          exit 1
+
       # -------------------------
       # 📦 pip-audit — Dependency Security
       # -------------------------
