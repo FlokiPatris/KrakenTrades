@@ -1,6 +1,5 @@
-# File: .ci/bin/run_bandit.sh
 #!/usr/bin/env bash
-# Install + run Bandit, JSON → SARIF
+# 🐍 Bandit — Static Code Analysis → SARIF
 
 set -Eeuo pipefail
 source ".ci/bin/common.sh"
@@ -14,16 +13,18 @@ main() {
 
   ensure_dir_secure "${sarif_dir}"
 
+  # 🔧 Install Bandit
   python -m pip install --upgrade pip >/dev/null
   pip install --disable-pip-version-check --no-cache-dir "bandit[toml]==${ver}" >/dev/null
 
+  # 🚨 Run Bandit scan (findings allowed, errors ignored)
   bandit -r "${GITHUB_WORKSPACE:-.}" \
          --severity-level low \
          -f json \
          -o "${bandit_json}" \
          -q || true
 
-  # Brief summary in annotations (no secret data)
+  # 📊 Summary in GitHub annotations
   python - <<'PY'
 import json, os
 p = os.environ.get("bandit_json_path","")
@@ -37,11 +38,17 @@ try:
 except Exception as e:
     print(f"::warning title=Bandit JSON parse failed::{e}")
 PY
-  bandit_json_path="${bandit_json}" BANDIT_VERSION="${ver}" SARIF_DIR="${sarif_dir}" \
+
+  # 🧠 Convert to SARIF
+  bandit_json_path="${bandit_json}" \
+  BANDIT_VERSION="${ver}" \
+  SARIF_DIR="${sarif_dir}" \
     python ".ci/bin/bandit_to_sarif.py"
 
+  # 🔐 Harden + cleanup
   chmod 600 -- "${sarif_dir}/bandit.sarif" 2>/dev/null || true
   rm -f -- "${bandit_json}"
+
   echo "::notice title=Bandit SARIF::${sarif_dir}/bandit.sarif"
 }
 
