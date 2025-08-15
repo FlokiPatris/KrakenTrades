@@ -214,7 +214,6 @@ jobs:
           fi
 
       - name: 🔑 Gitleaks (secrets → SARIF)
-        continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
           tag="${GITLEAKS_IMAGE_TAG}"
@@ -251,7 +250,6 @@ jobs:
           wait-for-processing: true
 
       - name: 📦 pip-audit (deps → SARIF)
-        continue-on-error: true
         run: |
           source .ci/bin/sarif_utils.sh
           pip install --disable-pip-version-check --no-cache-dir "pip-audit==${PIP_AUDIT_VERSION}"
@@ -273,7 +271,6 @@ jobs:
           wait-for-processing: true
 
       - name: 🐍 Bandit (code security → SARIF)
-        continue-on-error: true
         env:
           # Pass workspace for path normalization inside converter
           GITHUB_WORKSPACE: ${{ github.workspace }}
