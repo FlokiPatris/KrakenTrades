@@ -256,19 +256,20 @@ jobs:
           category: secrets-gitleaks
           wait-for-processing: true
 
-      # 📦 pip-audit (dependency vulnerabilities → SARIF, with fail-on-findings)
-      - name: 📦 Install pip-audit (latest with SARIF support)
+      # 📦 pip-audit (dependency vulnerabilities → JSON → SARIF, with fail-on-findings)
+      - name: 📦 Install pip-audit (latest available)
         run: |
-          pip install --disable-pip-version-check --no-cache-dir "pip-audit>=2.10.0"
+          pip install --disable-pip-version-check --no-cache-dir "pip-audit==2.9.0"
 
-      - name: 📦 Run pip-audit and generate SARIF
+      - name: 📦 Run pip-audit (JSON) and convert to SARIF
         run: |
           source .ci/bin/sarif_utils.sh
 
           mkdir -p "${SARIF_DIR}"
           req="${{ steps.deps.outputs.requirements }}"
-          audit_args=(--format sarif --output "${SARIF_DIR}/pip-audit.sarif" --strict)
+          audit_args=(--format json --output "${SARIF_DIR}/pip-audit.json" --strict)
 
+          # Run audit without killing workflow immediately on nonzero exit
           set +e
           if [[ -n "${req}" ]]; then
             pip-audit --requirement "${req}" "${audit_args[@]}"
@@ -278,9 +279,12 @@ jobs:
           audit_status=$?
           set -e
 
+          # Convert JSON → SARIF (uses helper function or script in sarif_utils.sh)
+          json_to_sarif "${SARIF_DIR}/pip-audit.json" "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "2.9.0"
+
           # Ensure SARIF exists even if no vulns found
           [[ -s "${SARIF_DIR}/pip-audit.sarif" ]] || \
-            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "$(pip-audit --version)"
+            write_empty_sarif "${SARIF_DIR}/pip-audit.sarif" "pip-audit" "2.9.0"
 
           echo "AUDIT_STATUS=$audit_status" >> "$GITHUB_ENV"
 
@@ -300,7 +304,6 @@ jobs:
         run: |
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
-
 
 
       - name: 🐍 Bandit (code security → SARIF)
