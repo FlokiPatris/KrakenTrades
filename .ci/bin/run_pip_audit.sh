@@ -21,7 +21,7 @@ main() {
     pip install --disable-pip-version-check --no-cache-dir "pip-audit==${ver}" >/dev/null
   fi
 
-  if [[ -f requirements.txt ]]; then
+  if [[ -f requirements.txt ]];
     artifact="requirements.txt"
     set -o pipefail
     pip-audit -r requirements.txt --format json --output "${json_out}" --strict || audit_status=$?
@@ -30,7 +30,6 @@ main() {
     set -o pipefail
     pip-audit --format json --output "${json_out}" --strict || audit_status=$?
     set +o pipefail
-  fi
 
   export PIP_AUDIT_ARTIFACT_URI="${artifact}"
   if [[ -s "${json_out}" ]]; then
