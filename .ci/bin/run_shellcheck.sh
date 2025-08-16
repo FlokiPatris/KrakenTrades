@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -------------------------
-# 🐚 ShellCheck — Lint shell scripts → SARIF
+# 🐚 ShellCheck — Lint shell scripts → SARIF (CI-friendly)
 # -------------------------
 # - Strict mode, safe IFS, secure umask
 # - Uses shared CI helpers for directory hardening and SARIF conversion
@@ -27,6 +27,7 @@ main() {
   local exclude_dirs="${SHELLCHECK_EXCLUDE_DIRS:-.git .venv venv node_modules vendor dist build .mypy_cache .pytest_cache}"
   local json_out="${sarif_dir}/shellcheck.json"
   local sarif_out="${sarif_dir}/shellcheck.sarif"
+  local src_root="${GITHUB_WORKSPACE:-$root_dir}"
 
   ensure_dir_secure "${sarif_dir}"
 
@@ -38,6 +39,7 @@ main() {
   log_info "🔍 ShellCheck: severity=${severity} fail_on=${fail_on}"
   log_info "Root: ${root_dir}"
   log_info "Excludes: ${exclude_dirs}"
+  log_info "Source root for SARIF: ${src_root}"
 
   # ----------------------------
   # Build find excludes
@@ -65,8 +67,10 @@ main() {
   # Convert or write empty SARIF
   # ----------------------------
   if [[ -s "${json_out}" ]]; then
+    local shellcheck_version
     shellcheck_version="$(shellcheck --version | awk '/version:/{print $2}')"
-    json_to_sarif "${json_out}" "${sarif_out}" "shellcheck" "${shellcheck_version}"
+    SHELLCHECK_SRCROOT="${src_root}" \
+      json_to_sarif "${json_out}" "${sarif_out}" "shellcheck" "${shellcheck_version}"
   else
     write_empty_sarif "${sarif_out}" "shellcheck" "$(shellcheck --version | awk '/version:/{print $2}')"
   fi
