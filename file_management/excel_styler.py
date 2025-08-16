@@ -1,8 +1,10 @@
-from kraken_core import ExcelStyling, TradeColumn, custom_logger
 from pathlib import Path
+
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+from kraken_core import ExcelStyling, TradeColumn, custom_logger
 
 
 def style_excel(output: Path) -> None:

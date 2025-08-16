@@ -1,8 +1,9 @@
-import re
-from pathlib import Path
-from dataclasses import dataclass
-from dotenv import load_dotenv
 import os
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()

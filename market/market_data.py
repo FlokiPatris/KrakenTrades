@@ -1,6 +1,8 @@
-from kraken_core import KrakenAPI, custom_logger
 from typing import Optional
+
 import requests
+
+from kraken_core import KrakenAPI, custom_logger
 
 
 def fetch_market_price(pair: str) -> Optional[float]:

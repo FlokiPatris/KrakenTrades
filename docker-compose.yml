@@ -10,3 +10,9 @@ services:
     environment:
       - PYTHONUNBUFFERED=1  # Ensures real-time output by disabling Python's stdout buffering
     tty: true  # Allocates a pseudo-TTY for interactive terminal usage (useful for logs/debugging)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; exit(0) if requests.get('https://api.kraken.com/0/public/Time').ok else exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

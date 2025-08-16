@@ -1,17 +1,25 @@
-# 🔐 AppSec — Security, Secrets & Shell Script Scan
+# .github/workflows/scan.yml
+# 🔐 AppSec — Security, Secrets & Shell Script Scan (DRY, Makefile-driven)
+# - Single source of truth: defers to Makefile targets for all scans
+# - CI-only responsibilities: SARIF upload, gating, artifact hardening
+# - No magic constants: all tunables centralized in env
+# - Public repo safe: minimal permissions, no secrets echoed, hardened artifacts
+
 name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
   push:
     branches: ["**"]
     paths:
-      - '**.sh'
-      - '.ci/bin/**'
+      - "**.sh"
+      - ".ci/bin/**"
+      - "Makefile"
   pull_request:
     branches: ["**"]
     paths:
-      - '**.sh'
-      - '.ci/bin/**'
+      - "**.sh"
+      - ".ci/bin/**"
+      - "Makefile"
   workflow_dispatch:
 
 permissions:
@@ -22,27 +30,28 @@ concurrency:
   group: appsec-scan-${{ github.ref }}
   cancel-in-progress: true
 
-# -------------------------
-# 🌍 Global environment vars
-# -------------------------
 env:
+  # Runtime/tooling
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
 
-  # 📌 Pinned tool versions for reproducibility
+  # Pinned tool versions (reproducible)
   PIP_AUDIT_VERSION: "2.9.0"
   BANDIT_VERSION: "1.8.6"
+  TRIVY_VERSION: "0.51.4"
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
-  TRIVY_VERSION: "0.51.4"
+
+  # Trivy behavior: do not fail the job directly (we gate explicitly later)
   TRIVY_EXIT_CODE: "0"
 
-  # Upload SARIF only when safe
+  # Upload SARIF only for push and for PRs from same repository (avoid leak from forks)
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
   security:
+    name: Run Makefile AppSec suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -50,25 +59,23 @@ jobs:
         shell: bash
 
     steps:
-      # -------------------------
-      # 🛠️ Setup
-      # -------------------------
       - name: 📥 Checkout source code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: 🐍 Setup Python runtime
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 🧰 Install system dependencies
+      - name: 🧰 Install minimal system dependencies
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends make ca-certificates git
+          sudo apt-get install -y --no-install-recommends \
+            make ca-certificates git curl jq
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: 🔎 Validate required secrets (non-fatal if helper missing)
@@ -80,118 +87,101 @@ jobs:
             echo "Note: .ci/bin/common.sh not found; skipping required secrets validation."
           fi
 
-      # -------------------------
-      # 🔍 Trivy — FS scan → SARIF
-      # -------------------------
-      - name: 🔍 Trivy (filesystem)
+      - name: 📂 Prepare SARIF directory
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
-          SARIF_FILE: trivy.sarif
-          TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
-          TRIVY_SEVERITY: "HIGH,CRITICAL"
-          TRIVY_TARGET: "."
-          TRIVY_MODE: fs
-          TRIVY_IGNORE_UNFIXED: "true"
-          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
-        run: bash .ci/bin/run_trivy.sh
+        run: make ensure-dirs
 
-      - name: ⬆️ Upload Trivy SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/trivy.sarif
-          category: sec-trivy
-          wait-for-processing: true
-
-      # -------------------------
-      # 🔑 Gitleaks — Secret Scanning
-      # -------------------------
-      - name: 🔑 Gitleaks (secrets → SARIF)
+      # Core step: delegate all scanning to the Makefile to avoid YAML drift.
+      - name: 🔐 Run AppSec suite via Makefile
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
+          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
+          BANDIT_VERSION: ${{ env.BANDIT_VERSION }}
           GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
           GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
           GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
-        run: bash .ci/bin/run_gitleaks.sh
+          TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
+          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
+        run: |
+          set -euo pipefail
+          # The Makefile’s `appsec` target runs: shellcheck, bandit, pip-audit, gitleaks, trivy
+          # Each .ci/bin/* script must write any gating statuses to $GITHUB_ENV (e.g., GITLEAKS_STATUS, AUDIT_STATUS).
+          make appsec
 
-      - name: ⬆️ Upload Gitleaks SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
+      # Harden SARIF files before uploading or artifacting
+      - name: 🧹 Harden SARIF artifacts (permissions)
+        if: always()
+        env:
+          SARIF_DIR: ${{ env.SARIF_DIR }}
+          UPLOAD_SARIF: ${{ env.UPLOAD_SARIF }}
+        run: |
+          set -euo pipefail
+          if [[ -d "${SARIF_DIR}" ]]; then
+            # Restrictive perms (no world-readable)
+            find "${SARIF_DIR}" -type f -name "*.sarif" -exec chmod 600 {} \; || true
+            find "${SARIF_DIR}" -type d -exec chmod 700 {} \; || true
+          fi
+          echo "Audit: SARIF permissions set, uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
+
+      # Bundle SARIF as a short-lived artifact to decouple upload (enables DRY matrix in a separate job)
+      - name: 📦 Upload SARIF bundle (for post-processing)
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
-          category: secrets-gitleaks
-          wait-for-processing: true
+          name: sarif-bundle
+          path: ${{ env.SARIF_DIR }}/*.sarif
+          if-no-files-found: ignore
+          retention-days: 2
 
-      - name: ❌ Fail build if Gitleaks found secrets
+      # Explicit gating: fail the job based on tool-reported statuses written by scripts to $GITHUB_ENV.
+      # These environment variables must be set by .ci/bin scripts (non-fatal scan runs, fail here instead).
+      - name: ❌ Fail if Gitleaks found secrets
         if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
         run: |
           echo "🚨 Secrets detected by Gitleaks — failing pipeline."
           exit 1
 
-      # -------------------------
-      # 📦 pip-audit — Dependency Security
-      # -------------------------
-      - name: 📦 pip-audit (deps → SARIF)
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
-        run: bash .ci/bin/run_pip_audit.sh
-
-      - name: ⬆️ Upload pip-audit SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
-          category: deps-pip-audit
-          wait-for-processing: true
-
-      - name: ❌ Fail build if pip-audit found vulnerabilities
-        if: ${{ env.AUDIT_STATUS != '0' }}
+      - name: ❌ Fail if pip-audit found vulnerabilities
+        if: ${{ env.AUDIT_STATUS != '' && env.AUDIT_STATUS != '0' }}
         run: |
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
 
-      # -------------------------
-      # 🐚 ShellCheck — Lint Shell Scripts
-      # -------------------------
-      - name: 🐚 ShellCheck (lint → SARIF)
-        run: make shellcheck
+  sarif-upload:
+    name: Upload SARIF to Security tab
+    needs: [security]
+    runs-on: ubuntu-latest
+    if: ${{ needs.security.result != 'cancelled' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - file: trivy.sarif
+            category: sec-trivy
+          - file: gitleaks.sarif
+            category: secrets-gitleaks
+          - file: pip-audit.sarif
+            category: deps-pip-audit
+          - file: shellcheck.sarif
+            category: lint-shellcheck
+          - file: bandit.sarif
+            category: code-bandit
+    env:
+      SARIF_DIR: "sarif-reports"
 
-      - name: ⬆️ Upload ShellCheck SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
+    steps:
+      - name: 📥 Download SARIF bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: sarif-bundle
+          path: ${{ env.SARIF_DIR }}
+
+      # Upload only if the specific SARIF exists (avoids errors if a tool skipped or produced nothing)
+      - name: ⬆️ Upload ${{ matrix.category }} SARIF
+        if: ${{ always() && hashFiles(format('{0}/{1}', env.SARIF_DIR, matrix.file)) != '' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/shellcheck.sarif
-          category: lint-shellcheck
+          sarif_file: ${{ env.SARIF_DIR }}/${{ matrix.file }}
+          category: ${{ matrix.category }}
           wait-for-processing: true
-
-      # -------------------------
-      # 🐍 Bandit — Static Code Analysis
-      # -------------------------
-      - name: 🐍 Bandit (code security → SARIF)
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          BANDIT_VERSION: ${{ env.BANDIT_VERSION }}
-          GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: bash .ci/bin/run_bandit.sh
-
-      - name: ⬆️ Upload Bandit SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
-          category: code-bandit
-          wait-for-processing: true
-
-      # -------------------------
-      # 🧹 Post-Scan Hardening & Audit Notes
-      # -------------------------
-      - name: 🧹 Harden artifacts & audit log
-        if: always()
-        run: |
-          set -euo pipefail
-          if [[ -d "${SARIF_DIR}" ]]; then
-            find "${SARIF_DIR}" -type f -name "*.sarif" -exec chmod 600 {} \; 2>/dev/null || true
-            find "${SARIF_DIR}" -type d -exec chmod 700 {} \; 2>/dev/null || true
-          fi
-          echo "Audit: SARIF permissions set, uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."

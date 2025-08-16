@@ -1,131 +1,175 @@
-# File: Makefile
-# Purpose: Run the same AppSec scans locally as in .github/workflows/appsec-security.yml
-# Security: strict shell, locked-down artifacts, no secret echo
+# ==========================================================
+# KrakenTrades - Unified Makefile
+# ==========================================================
+# Goals:
+# - Single entrypoint for both local dev and CI (predictable behavior).
+# - Wrap all existing .ci/bin/*.sh scripts → DRY principle, no workflow duplication.
+# - Avoid "magic constants": configure paths/flags via variables at the top.
+# - Security-first defaults: fail fast, strict error handling, consistent dirs.
+# - CI/CD & Docker friendly: same commands run everywhere.
+#
+# Usage (examples):
+#   make help             # show all available targets
+#   make appsec           # run full security suite
+#   make test             # run tests with coverage
+#   make docker-build     # build Docker image
+#
+# Best practice:
+# - Add new scanners or tools here (not directly into CI YAML).
+# - Never hardcode credentials; rely on environment variables.
+# ==========================================================
 
+# ----- Configurable variables -----
+BIN_DIR        ?= .ci/bin            # scripts for individual scanners
+SARIF_DIR      ?= sarif-reports      # security output dir
+PYTHON         ?= python3
+PIP            ?= pip3
+DOCKER_IMAGE   ?= krakentrades:ci    # CI container tag
+COMPOSE_FILE   ?= docker-compose.yml
+
+# ----- Strict shell mode -----
 SHELL := /bin/bash
-.SHELLFLAGS := -eu -o pipefail -c
-.ONESHELL:
+.SHELLFLAGS := -Eeuo pipefail -c
+# -E: inherit ERR traps, -e: exit on error, -u: undefined vars = error
+# -o pipefail: fail if any pipe stage fails
+
+# ----- Colors (for pretty CLI output) -----
+BLUE  := \033[1;34m
+GREEN := \033[0;32m
+GRAY  := \033[0;37m
+NC    := \033[0m
+
 .DEFAULT_GOAL := help
-.RECIPEPREFIX := >
 
-# Load optional .env (commit only .env.example)
-ifneq (,$(wildcard .env))
-    include .env
-    export
-endif
+# ----- Declare phony targets -----
+.PHONY: help ensure-dirs local-all appsec \
+        shellcheck bandit pip-audit gitleaks trivy hadolint \
+        fmt lint test pre-commit \
+        docker-build docker-run up down clean
 
-# ===== Global defaults =====
-PYTHON_VERSION         ?= 3.11
-SARIF_DIR              ?= sarif-reports
-PIP_AUDIT_VERSION      ?= 2.9.0
-BANDIT_VERSION         ?= 1.8.6
-GITLEAKS_IMAGE         ?= zricethezav/gitleaks
-GITLEAKS_IMAGE_TAG     ?= 8.18.2
-GITLEAKS_FALLBACK_TAG  ?= latest
-TRIVY_VERSION          ?= 0.51.4
-TRIVY_SEVERITY         ?= HIGH,CRITICAL
-TRIVY_EXIT_CODE        ?= 0
-SHELLCHECK_SEVERITY    ?= warning
-SHELLCHECK_FAIL_ON     ?= any
+# ==========================================================
+# Helpers
+# ==========================================================
+help:
+	@printf "\n$(GREEN)Available targets$(NC)\n"
+	@printf "  $(BLUE)appsec$(NC)        Run all security scans (shellcheck, bandit, pip-audit, gitleaks, trivy)\n"
+	@printf "  $(BLUE)shellcheck$(NC)    Run ShellCheck + SARIF conversion\n"
+	@printf "  $(BLUE)bandit$(NC)        Run Bandit + SARIF conversion\n"
+	@printf "  $(BLUE)pip-audit$(NC)     Run pip-audit + SARIF conversion\n"
+	@printf "  $(BLUE)gitleaks$(NC)      Run gitleaks + SARIF conversion\n"
+	@printf "  $(BLUE)trivy$(NC)         Run Trivy container scan + SARIF conversion\n"
+	@printf "  $(BLUE)hadolint$(NC)      Lint Dockerfile\n"
+	@printf "  $(BLUE)test$(NC)          Run pytest with coverage\n"
+	@printf "  $(BLUE)fmt$(NC)           Format code (black + isort)\n"
+	@printf "  $(BLUE)lint$(NC)          Lint code (flake8 + mypy)\n"
+	@printf "  $(BLUE)pre-commit$(NC)    Install & run pre-commit hooks\n"
+	@printf "  $(BLUE)docker-build$(NC)  Build Docker image ($(DOCKER_IMAGE))\n"
+	@printf "  $(BLUE)docker-run$(NC)    Run Docker image (ephemeral)\n"
+	@printf "  $(BLUE)up$(NC)            docker compose up (detached)\n"
+	@printf "  $(BLUE)down$(NC)          docker compose down (cleanup)\n"
+	@printf "  $(BLUE)clean$(NC)         Remove caches, build, and $(SARIF_DIR)\n\n"
 
-# Paths and security defaults
-CI_BIN := .ci/bin
-UMASK  := 077
+ensure-dirs:
+	@mkdir -p "$(SARIF_DIR)"
 
-# Internal helpers
-REQ_TOOLS := bash awk grep docker
-SCAN_SCRIPTS := \
-    $(CI_BIN)/run_trivy.sh \
-    $(CI_BIN)/run_gitleaks.sh \
-    $(CI_BIN)/run_pip_audit.sh \
-    $(CI_BIN)/run_bandit.sh \
-    $(CI_BIN)/run_shellcheck.sh
+# ==========================================================
+# Local full pipeline (developer convenience)
+# ==========================================================
+local-all: ensure-dirs
+	# Run security + quality stack locally in one shot
+	SARIF_OUT_DIR="$(PWD)/$(SARIF_DIR)" \
+	GITHUB_ENV=/dev/null \
+	$(MAKE) shellcheck || true
+	python -m bandit -r . -f json -o "$(SARIF_DIR)/bandit.json" || true
+	$(MAKE) pip-audit || true
+	gitleaks detect --source . --report-format sarif --report-path "$(SARIF_DIR)/gitleaks.sarif" || true
+	$(MAKE) trivy || true
+	$(MAKE) hadolint || true
+	$(MAKE) test || true
+	$(MAKE) fmt || true
+	$(MAKE) lint || true
 
-# Group scanning targets for easy chaining
-SCANS := trivy pip-audit bandit shellcheck gitleaks
+# ==========================================================
+# Security meta-targets
+# ==========================================================
+appsec: ensure-dirs shellcheck bandit pip-audit gitleaks trivy
+	@echo "✔ All AppSec scans completed."
 
-# ===== Targets =====
-.PHONY: help all preflight validate prepare-dir $(SCANS) spellcheck harden clean-sarif print-config
+# ---- Security scanners (delegated to scripts in .ci/bin) ----
+shellcheck: ensure-dirs
+	@"$(BIN_DIR)/run_shellcheck.sh"
 
-help: ## Show this help
->   @grep -E '^[a-zA-Z0-9._-]+:.*?## ' $(MAKEFILE_LIST) | \
->     awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
+bandit: ensure-dirs
+	@"$(BIN_DIR)/run_bandit.sh"
 
-print-config: ## Print non-sensitive effective configuration
->   @echo "Config:"
->   @printf "  %-22s = %s\n" PYTHON_VERSION "$(PYTHON_VERSION)"
->   @printf "  %-22s = %s\n" SARIF_DIR "$(SARIF_DIR)"
->   @printf "  %-22s = %s\n" PIP_AUDIT_VERSION "$(PIP_AUDIT_VERSION)"
->   @printf "  %-22s = %s\n" BANDIT_VERSION "$(BANDIT_VERSION)"
->   @printf "  %-22s = %s\n" GITLEAKS_IMAGE "$(GITLEAKS_IMAGE)"
->   @printf "  %-22s = %s\n" GITLEAKS_IMAGE_TAG "$(GITLEAKS_IMAGE_TAG)"
->   @printf "  %-22s = %s\n" GITLEAKS_FALLBACK_TAG "$(GITLEAKS_FALLBACK_TAG)"
->   @printf "  %-22s = %s\n" TRIVY_VERSION "$(TRIVY_VERSION)"
->   @printf "  %-22s = %s\n" TRIVY_SEVERITY "$(TRIVY_SEVERITY)"
->   @printf "  %-22s = %s\n" TRIVY_EXIT_CODE "$(TRIVY_EXIT_CODE)"
->   @printf "  %-22s = %s\n" SHELLCHECK_SEVERITY "$(SHELLCHECK_SEVERITY)"
->   @printf "  %-22s = %s\n" SHELLCHECK_FAIL_ON "$(SHELLCHECK_FAIL_ON)"
->   @printf "  %-22s = %s\n" CI_BIN "$(CI_BIN)"
->   @printf "  %-22s = %s\n" UMASK "$(UMASK)"
+pip-audit: ensure-dirs
+	@"$(BIN_DIR)/run_pip_audit.sh"
 
-prepare-dir: ## Create SARIF dir with secure permissions
->   umask $(UMASK)
->   mkdir -p "$(SARIF_DIR)"
->   chmod 700 "$(SARIF_DIR)" || true
+gitleaks: ensure-dirs
+	@"$(BIN_DIR)/run_gitleaks.sh"
 
-preflight: ## Verify required tools and scripts exist
->   for t in $(REQ_TOOLS); do \
->     command -v $$t >/dev/null 2>&1 || { echo "Error: required tool '$$t' not found"; exit 1; }; \
->   done
->   for s in $(SCAN_SCRIPTS); do \
->     [ -f "$$s" ] || { echo "Error: missing script '$$s'"; exit 1; }; \
->   done
->   $(MAKE) prepare-dir
->   command -v docker >/dev/null 2>&1 || \
->     echo "Note: 'docker' not found. Trivy/Gitleaks will try native binaries if available."
+trivy: ensure-dirs
+	@"$(BIN_DIR)/run_trivy.sh"
 
-validate: ## Validate required secrets if script is available
->   if [ -x "$(CI_BIN)/common.sh" ]; then \
->       bash "$(CI_BIN)/common.sh" validate_required_secrets; \
->   else \
->       echo "Note: $(CI_BIN)/common.sh not found; skipping secrets validation."; \
->   fi
+# ---- Optional Dockerfile linter ----
+hadolint:
+	@echo "→ hadolint Dockerfile"
+	@curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o hadolint
+	@chmod +x hadolint
+	@./hadolint Dockerfile || true
+	@rm -f hadolint
+	@echo "✔ hadolint completed."
 
-all: preflight validate $(SCANS) harden ## Run all scans
+# ==========================================================
+# Quality & testing
+# ==========================================================
+fmt:
+	@echo "→ format (black + isort)"
+	@$(PIP) install -q black isort
+	@$(PYTHON) -m black .
+	@$(PYTHON) -m isort .
 
-# ===== Scan Targets =====
-shellcheck: prepare-dir ## Run ShellCheck
->   export SARIF_DIR="$(SARIF_DIR)" \
->          SHELLCHECK_SEVERITY="$(SHELLCHECK_SEVERITY)" \
->          SHELLCHECK_FAIL_ON="$(SHELLCHECK_FAIL_ON)"
->   command -v shellcheck >/dev/null 2>&1 || \
->       { sudo apt-get update && sudo apt-get install -y shellcheck; }
->   bash "$(CI_BIN)/run_shellcheck.sh"
+lint:
+	@echo "→ lint (flake8 + mypy)"
+	@$(PIP) install -q flake8 mypy
+	@$(PYTHON) -m flake8 .
+	@$(PYTHON) -m mypy --ignore-missing-imports .
 
-trivy: prepare-dir ## Run Trivy filesystem scan
->   export SARIF_DIR="$(SARIF_DIR)"
->   bash "$(CI_BIN)/run_trivy.sh"
+test:
+	@echo "→ test (pytest + coverage)"
+	@$(PIP) install -q pytest pytest-cov
+	@$(PYTHON) -m pytest -q --cov=. --cov-report=term-missing
 
-pip-audit: prepare-dir ## Run pip-audit
->   export SARIF_DIR="$(SARIF_DIR)"
->   bash "$(CI_BIN)/run_pip_audit.sh"
+pre-commit:
+	@echo "→ pre-commit install & run"
+	@$(PIP) install -q pre-commit
+	@pre-commit install
+	@pre-commit run --all-files || true
 
-bandit: prepare-dir ## Run Bandit static code analysis
->   export SARIF_DIR="$(SARIF_DIR)"
->   bash "$(CI_BIN)/run_bandit.sh"
+# ==========================================================
+# Docker/Compose helpers
+# ==========================================================
+docker-build:
+	@echo "→ docker build $(DOCKER_IMAGE)"
+	@docker build -t "$(DOCKER_IMAGE)" .
 
-gitleaks: prepare-dir ## Run Gitleaks secret scan
->   export SARIF_DIR="$(SARIF_DIR)"
->   bash "$(CI_BIN)/run_gitleaks.sh"
+docker-run:
+	@echo "→ docker run $(DOCKER_IMAGE)"
+	@docker run --rm "$(DOCKER_IMAGE)"
 
-# ===== Maintenance =====
-harden: ## Restrict permissions on SARIF files and directories
->   if [ -d "$(SARIF_DIR)" ]; then \
->       find "$(SARIF_DIR)" -type f -name "*.sarif" -exec chmod 600 {} \; 2>/dev/null || true; \
->       find "$(SARIF_DIR)" -type d -exec chmod 700 {} \; 2>/dev/null || true; \
->   fi
->   echo "Artifacts hardened in '$(SARIF_DIR)'."
+up:
+	@echo "→ docker compose up"
+	@docker compose -f "$(COMPOSE_FILE)" up -d --build
 
-clean-sarif: ## Remove all SARIF artifacts
->   rm -rf "$(SARIF_DIR)"
->   echo "Removed $(SARIF_DIR)"
+down:
+	@echo "→ docker compose down"
+	@docker compose -f "$(COMPOSE_FILE)" down --remove-orphans
+
+# ==========================================================
+# Cleanup
+# ==========================================================
+clean:
+	@echo "→ clean build/cache/SARIF artifacts"
+	@rm -rf .pytest_cache .mypy_cache .ruff_cache .venv build dist "$(SARIF_DIR)"
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@echo "✔ clean complete."

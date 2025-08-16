@@ -18,7 +18,11 @@ exclude: >
 
 repos:
   - repo: https://github.com/psf/black
-    rev: 23.9.1    # You can bump this to the latest stable version if you like
-    hooks:
-      - id: black
-        language_version: python3.10
+    rev: 24.4.2
+    hooks: [{ id: black }]
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks: [{ id: flake8 }]
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks: [{ id: bandit, args: ["-iii", "-ll"] }]
