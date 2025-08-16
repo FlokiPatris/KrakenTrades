@@ -20,12 +20,12 @@
 # ==========================================================
 
 # ----- Configurable variables -----
-BIN_DIR        ?= .ci/bin            # scripts for individual scanners
-SARIF_DIR      ?= sarif-reports      # security output dir
-PYTHON         ?= python3
-PIP            ?= pip3
-DOCKER_IMAGE   ?= krakentrades:ci    # CI container tag
-COMPOSE_FILE   ?= docker-compose.yml
+BIN_DIR ?= .ci/bin
+SARIF_DIR ?= sarif-reports
+PYTHON ?= python3
+PIP ?= pip3
+DOCKER_IMAGE ?= krakentrades:ci
+COMPOSE_FILE ?= docker-compose.yml
 
 # ----- Strict shell mode -----
 SHELL := /bin/bash
@@ -34,10 +34,10 @@ SHELL := /bin/bash
 # -o pipefail: fail if any pipe stage fails
 
 # ----- Colors (for pretty CLI output) -----
-BLUE  := \033[1;34m
+BLUE := \033[1;34m
 GREEN := \033[0;32m
-GRAY  := \033[0;37m
-NC    := \033[0m
+GRAY := \033[0;37m
+NC := \033[0m
 
 .DEFAULT_GOAL := help
 
