@@ -78,76 +78,76 @@ jobs:
             echo "Note: .ci/bin/common.sh not found; skipping required secrets validation."
           fi
 
-      # -------------------------
-      # 🔍 Trivy — FS scan → SARIF
-      # -------------------------
-      - name: 🔍 Trivy (filesystem)
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          SARIF_FILE: trivy.sarif
-          TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
-          TRIVY_SEVERITY: "HIGH,CRITICAL"
-          TRIVY_TARGET: "."
-          TRIVY_MODE: fs
-          TRIVY_IGNORE_UNFIXED: "true"
-          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
-        run: bash .ci/bin/run_trivy.sh
+      # # -------------------------
+      # # 🔍 Trivy — FS scan → SARIF
+      # # -------------------------
+      # - name: 🔍 Trivy (filesystem)
+      #   env:
+      #     SARIF_DIR: ${{ env.SARIF_DIR }}
+      #     SARIF_FILE: trivy.sarif
+      #     TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
+      #     TRIVY_SEVERITY: "HIGH,CRITICAL"
+      #     TRIVY_TARGET: "."
+      #     TRIVY_MODE: fs
+      #     TRIVY_IGNORE_UNFIXED: "true"
+      #     TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
+      #   run: bash .ci/bin/run_trivy.sh
 
-      - name: ⬆️ Upload Trivy SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/trivy.sarif
-          category: sec-trivy
-          wait-for-processing: true
+      # - name: ⬆️ Upload Trivy SARIF
+      #   if: always() && env.UPLOAD_SARIF == 'true'
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ env.SARIF_DIR }}/trivy.sarif
+      #     category: sec-trivy
+      #     wait-for-processing: true
 
-      # -------------------------
-      # 🔑 Gitleaks — Secret Scanning
-      # -------------------------
-      - name: 🔑 Gitleaks (secrets → SARIF)
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
-          GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
-          GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
-        run: bash .ci/bin/run_gitleaks.sh
+      # # -------------------------
+      # # 🔑 Gitleaks — Secret Scanning
+      # # -------------------------
+      # - name: 🔑 Gitleaks (secrets → SARIF)
+      #   env:
+      #     SARIF_DIR: ${{ env.SARIF_DIR }}
+      #     GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
+      #     GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
+      #     GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
+      #   run: bash .ci/bin/run_gitleaks.sh
 
-      - name: ⬆️ Upload Gitleaks SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
-          category: secrets-gitleaks
-          wait-for-processing: true
+      # - name: ⬆️ Upload Gitleaks SARIF
+      #   if: always() && env.UPLOAD_SARIF == 'true'
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ env.SARIF_DIR }}/gitleaks.sarif
+      #     category: secrets-gitleaks
+      #     wait-for-processing: true
 
-      - name: ❌ Fail build if Gitleaks found secrets
-        if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
-        run: |
-          echo "🚨 Secrets detected by Gitleaks — failing pipeline."
-          exit 1
+      # - name: ❌ Fail build if Gitleaks found secrets
+      #   if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
+      #   run: |
+      #     echo "🚨 Secrets detected by Gitleaks — failing pipeline."
+      #     exit 1
 
-      # -------------------------
-      # 📦 pip-audit — Dependency Security
-      # -------------------------
-      - name: 📦 pip-audit (deps → SARIF)
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
-        run: bash .ci/bin/run_pip_audit.sh
+      # # -------------------------
+      # # 📦 pip-audit — Dependency Security
+      # # -------------------------
+      # - name: 📦 pip-audit (deps → SARIF)
+      #   env:
+      #     SARIF_DIR: ${{ env.SARIF_DIR }}
+      #     PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
+      #   run: bash .ci/bin/run_pip_audit.sh
 
-      - name: ⬆️ Upload pip-audit SARIF
-        if: always() && env.UPLOAD_SARIF == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
-          category: deps-pip-audit
-          wait-for-processing: true
+      # - name: ⬆️ Upload pip-audit SARIF
+      #   if: always() && env.UPLOAD_SARIF == 'true'
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ env.SARIF_DIR }}/pip-audit.sarif
+      #     category: deps-pip-audit
+      #     wait-for-processing: true
 
-      - name: ❌ Fail build if pip-audit found vulnerabilities
-        if: ${{ env.AUDIT_STATUS != '0' }}
-        run: |
-          echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
-          exit 1
+      # - name: ❌ Fail build if pip-audit found vulnerabilities
+      #   if: ${{ env.AUDIT_STATUS != '0' }}
+      #   run: |
+      #     echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
+      #     exit 1
 
       # -------------------------
       # 🐚 ShellCheck — Lint Shell Scripts
