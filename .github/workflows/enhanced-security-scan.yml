@@ -1,8 +1,7 @@
-# File: .github/workflows/appsec-security.yml
-# 🔐 AppSec — Security, Secrets & Spellcheck Scan
-# Modular, DRY, CI-friendly workflow for secret detection, code security scanning, and spellchecking
+# 🔐 AppSec — Security, Secrets & Shell Script Scan
+# Modular, DRY, CI-friendly workflow for secret detection, code security scanning, and shell script linting
 
-name: "🔐 AppSec — Security, Secrets & Spellcheck Scan"
+name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
   push:
@@ -33,10 +32,11 @@ env:
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
   TRIVY_VERSION: "0.51.4"
-  TRIVY_EXIT_CODE: "0"          # Explicit default; do not rely on expression fallback
-  CODESPELL_VERSION: "2.3.0"
+  TRIVY_EXIT_CODE: "0"
+  SHELLCHECK_SEVERITY: "style"
+  SHELLCHECK_FAIL_ON: "any"
 
-  # Upload SARIF only when safe (push on same repo or PRs from same repo)
+  # Upload SARIF only when safe
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
@@ -150,20 +150,21 @@ jobs:
           exit 1
 
       # -------------------------
-      # 🔤 Spellcheck — Codespell via Makefile (non-blocking, low-noise)
+      # 🐚 ShellCheck — Lint Shell Scripts
       # -------------------------
-      - name: 🔤 Spellcheck (Makefile; quiet; non-blocking)
+      - name: 🐚 ShellCheck (lint → SARIF)
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
-          CODESPELL_VERSION: ${{ env.CODESPELL_VERSION }}
-        run: make spellcheck
+          SHELLCHECK_SEVERITY: ${{ env.SHELLCHECK_SEVERITY }}
+          SHELLCHECK_FAIL_ON: ${{ env.SHELLCHECK_FAIL_ON }}
+        run: bash .ci/bin/run_shellcheck.sh
 
-      - name: ⬆️ Upload Spellcheck SARIF
+      - name: ⬆️ Upload ShellCheck SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ env.SARIF_DIR }}/spellcheck.sarif
-          category: code-spellcheck
+          sarif_file: ${{ env.SARIF_DIR }}/shellcheck.sarif
+          category: code-shellcheck
           wait-for-processing: true
 
       # -------------------------

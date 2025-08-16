@@ -89,13 +89,13 @@ validate: ## Validate required secrets if script is available
 >       echo "Note: $(CI_BIN)/common.sh not found; skipping required secrets validation."; \
 >   fi
 
-all: preflight validate trivy pip-audit bandit spellcheck harden gitleaks 
+all: preflight validate trivy pip-audit bandit shellcheck harden gitleaks 
 
-spellcheck: ## Run Codespell on tracked project files
->    if ! command -v codespell >/dev/null 2>&1; then \
->        pip install "codespell==$(CODESPELL_VERSION)"; \
+shellcheck: ## Run ShellCheck on tracked shell script files
+>    @if ! command -v shellcheck >/dev/null 2>&1; then \
+>        sudo apt-get update && sudo apt-get install -y shellcheck; \
 >    fi
->    bash "$(CI_BIN)/run_spellcheck.sh"
+>    bash "$(CI_BIN)/run_shellcheck.sh"
 
 trivy: prepare-dir ## Run Trivy filesystem scan
 >   SARIF_DIR="$(SARIF_DIR)"; export SARIF_DIR
