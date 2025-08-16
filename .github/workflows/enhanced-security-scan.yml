@@ -150,6 +150,25 @@ jobs:
           exit 1
 
       # -------------------------
+      # 🔤 Spellcheck — Codespell via Makefile (non-blocking, low-noise)
+      # -------------------------
+      - name: 🔤 Codespell (Makefile; quiet; non-blocking)
+        env:
+          CODESPELL_VERSION: ${{ env.CODESPELL_VERSION }}
+        run: |
+          set -euo pipefail
+          make spellcheck
+        continue-on-error: true
+
+      - name: ⬆️ Upload Codespell SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_DIR }}/codespell.sarif
+          category: code-codespell
+          wait-for-processing: true
+
+      # -------------------------
       # 🐍 Bandit — Static Code Analysis
       # -------------------------
       - name: 🐍 Bandit (code security → SARIF)
@@ -166,17 +185,6 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/bandit.sarif
           category: code-bandit
           wait-for-processing: true
-
-      # -------------------------
-      # 🔤 Spellcheck — Codespell via Makefile (non-blocking, low-noise)
-      # -------------------------
-      - name: 🔤 Codespell (Makefile; quiet; non-blocking)
-        env:
-          CODESPELL_VERSION: ${{ env.CODESPELL_VERSION }}
-        run: |
-          set -euo pipefail
-          make spellcheck
-        continue-on-error: true
 
       # -------------------------
       # 🧹 Post-Scan Hardening & Audit Notes

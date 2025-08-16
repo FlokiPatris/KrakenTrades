@@ -95,7 +95,7 @@ spellcheck: ## Run Codespell on tracked project files
 >    if ! command -v codespell >/dev/null 2>&1; then \
 >        pip install "codespell==$(CODESPELL_VERSION)"; \
 >    fi
->    bash "$(CI_BIN)/run_codespell.sh"
+>    bash "$(CI_BIN)/run_spellcheck.sh"
 
 trivy: prepare-dir ## Run Trivy filesystem scan
 >   SARIF_DIR="$(SARIF_DIR)"; export SARIF_DIR
