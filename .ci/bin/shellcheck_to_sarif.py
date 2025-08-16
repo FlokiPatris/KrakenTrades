@@ -1,35 +1,23 @@
 #!/usr/bin/env python3
 """
-Convert ShellCheck JSON output to SARIF v2.1.0.
+Convert ShellCheck JSON to SARIF v2.1.0.
 
 Usage:
-    python3 shellcheck_to_sarif.py <input_json> <output_sarif> <tool_name> <tool_version>
-
-Notes:
-- Accepts ShellCheck's JSON array of diagnostics (as produced by: shellcheck --format=json).
-- Produces a GitHub-friendly SARIF 2.1.0 log with populated rules and stable paths.
+  python3 shellcheck_to_sarif.py <input_json> <output_sarif> <tool_name> <tool_version>
 """
-
-from __future__ import annotations
 
 import hashlib
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
-SHELLCHECK_WIKI_BASE = "https://www.shellcheck.net/wiki"
-
-# ----------------------------
-# Helpers
-# ----------------------------
+SHELLCHECK_WIKI = "https://www.shellcheck.net/wiki"
 
 
-def load_shellcheck_json(path: Union[str, Path]) -> List[Dict[str, Any]]:
-    """Load ShellCheck JSON. ShellCheck emits a list of diagnostics."""
+def load_shellcheck_json(path: str):
     p = Path(path)
     try:
         with p.open("r", encoding="utf-8") as fh:
@@ -38,57 +26,37 @@ def load_shellcheck_json(path: Union[str, Path]) -> List[Dict[str, Any]]:
         sys.exit(f"ERROR: Input file '{p}' not found.")
     except json.JSONDecodeError as e:
         sys.exit(f"ERROR: Failed to parse JSON from '{p}': {e}")
-
     if isinstance(data, list):
         return data
-    elif isinstance(data, dict) and data.get("comments"):
-        # Some nonstandard wrappers might place diagnostics under "comments"
-        comments = data.get("comments")
-        if isinstance(comments, list):
-            return comments
-    # Fallback to empty list if shape is unexpected
+    if isinstance(data, dict) and isinstance(data.get("comments"), list):
+        return data["comments"]
     return []
 
 
-def to_sarif_level(shellcheck_level: Optional[str]) -> str:
-    """Map ShellCheck 'level' to SARIF 'level'."""
-    m = (shellcheck_level or "").lower()
-    if m == "error":
-        return "error"
-    if m == "warning":
-        return "warning"
-    # "info" and "style" are considered notes in SARIF
-    return "note"
+def to_level(lvl: str | None) -> str:
+    m = (lvl or "").lower()
+    return "error" if m == "error" else "warning" if m == "warning" else "note"
 
 
-def rule_metadata(
-    sc_code_num: Optional[int], sample_message: str = ""
-) -> Dict[str, Any]:
-    """Build a SARIF rule for a given SC code number."""
-    code_num = str(sc_code_num or "").strip()
-    if not code_num.isdigit():
-        rule_id = "SCUNKNOWN"
-        help_uri = SHELLCHECK_WIKI_BASE
+def rule_for(code: int | None, msg: str = "") -> dict:
+    code_s = str(code or "").strip()
+    if code_s.isdigit():
+        rid = f"SC{code_s}"
+        help_uri = f"{SHELLCHECK_WIKI}/{rid}"
     else:
-        rule_id = f"SC{code_num}"
-        help_uri = f"{SHELLCHECK_WIKI_BASE}/{rule_id}"
-
-    short = sample_message or rule_id
+        rid = "SCUNKNOWN"
+        help_uri = SHELLCHECK_WIKI
+    short = (msg or rid)[:120]
     return {
-        "id": rule_id,
-        "name": rule_id,
-        "shortDescription": {"text": short[:120] if short else rule_id},
+        "id": rid,
+        "name": rid,
+        "shortDescription": {"text": short},
         "helpUri": help_uri,
-        # Default to note; actual result level is set per finding
         "defaultConfiguration": {"level": "note"},
     }
 
 
-def relativize_uri(path: Union[str, Path], srcroot: Path) -> Tuple[str, Optional[str]]:
-    """
-    Return (relative_posix_uri, uriBaseId) for a path, using %SRCROOT% when inside srcroot.
-    If not relative, return absolute as posix and no base id.
-    """
+def relativize(path: str | Path, srcroot: Path) -> tuple[str, str | None]:
     try:
         rel = Path(path).resolve().relative_to(srcroot.resolve())
         return rel.as_posix(), "%SRCROOT%"
@@ -96,95 +64,60 @@ def relativize_uri(path: Union[str, Path], srcroot: Path) -> Tuple[str, Optional
         return Path(path).resolve().as_posix(), None
 
 
-def location_region(diag: Dict[str, Any]) -> Dict[str, int]:
-    """Build SARIF region from ShellCheck diagnostic fields."""
-    start_line = int(diag.get("line") or 1)
-    start_col = int(diag.get("column") or 1)
-    end_line = int(diag.get("endLine") or start_line)
-    end_col = int(diag.get("endColumn") or start_col)
-    return {
-        "startLine": start_line,
-        "startColumn": start_col,
-        "endLine": end_line,
-        "endColumn": end_col,
-    }
+def region(diag: dict) -> dict:
+    sl = int(diag.get("line") or 1)
+    sc = int(diag.get("column") or 1)
+    el = int(diag.get("endLine") or sl)
+    ec = int(diag.get("endColumn") or sc)
+    return {"startLine": sl, "startColumn": sc, "endLine": el, "endColumn": ec}
 
 
-def fingerprint_for(diag: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Create lightweight, stable partial fingerprints to help deduplicate in GitHub.
-    Not the official hashing, but good enough for practical stability.
-    """
-    file_path = str(diag.get("file") or "")
-    code_num = str(diag.get("code") or "")
-    line = str(diag.get("line") or "")
-    basis = f"{file_path}:{line}:SC{code_num}"
+def fingerprints(diag: dict) -> dict:
+    basis = f"{diag.get('file','')}:{diag.get('line','')}:SC{diag.get('code','')}"
     h = hashlib.sha256(basis.encode("utf-8")).hexdigest()
-    # GitHub recognizes these keys if present
     return {
         "primaryLocationLineHash": h[:20],
         "primaryLocationStartColumnFingerprint": h[20:40],
     }
 
 
-# ----------------------------
-# Conversion
-# ----------------------------
-
-
 def shellcheck_to_sarif(
-    sc_data: List[Dict[str, Any]],
-    tool_name: str,
-    tool_version: str,
-    srcroot_env: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Convert ShellCheck diagnostics list to SARIF.
-    - Populates rules (unique SC codes) with wiki help URIs.
-    - Uses %SRCROOT% base for relative paths when possible.
-    """
+    diags: list[dict], tool_name: str, tool_version: str, srcroot_env: str | None = None
+) -> dict:
     srcroot = Path(srcroot_env or os.environ.get("SHELLCHECK_SRCROOT") or os.getcwd())
+    results: list[dict] = []
+    rules: dict[str, dict] = {}
 
-    results: List[Dict[str, Any]] = []
-    rules_index: Dict[str, Dict[str, Any]] = {}
+    for d in diags:
+        code = d.get("code")
+        rid = f"SC{code}" if code is not None else "SCUNKNOWN"
+        if rid not in rules:
+            rules[rid] = rule_for(code, str(d.get("message") or ""))
 
-    for diag in sc_data:
-        code_num = diag.get("code")
-        rule_id = f"SC{code_num}" if code_num is not None else "SCUNKNOWN"
-
-        # Ensure we have a rule entry
-        if rule_id not in rules_index:
-            rules_index[rule_id] = rule_metadata(
-                code_num, sample_message=str(diag.get("message") or "")
-            )
-
-        level = to_sarif_level(diag.get("level"))
-        rel_uri, base_id = relativize_uri(diag.get("file", ""), srcroot)
-        region = location_region(diag)
-
-        location: Dict[str, Any] = {
+        uri, base_id = relativize(d.get("file", ""), srcroot)
+        loc = {
             "physicalLocation": {
-                "artifactLocation": {"uri": rel_uri},
-                "region": region,
+                "artifactLocation": {"uri": uri}
+                | ({"uriBaseId": base_id} if base_id else {}),
+                "region": region(d),
             }
         }
-        if base_id:
-            location["physicalLocation"]["artifactLocation"]["uriBaseId"] = base_id
 
-        result: Dict[str, Any] = {
-            "ruleId": rule_id,
-            "level": level,
-            "message": {"text": str(diag.get("message") or rule_id)},
-            "locations": [location],
-            "partialFingerprints": fingerprint_for(diag),
-            "properties": {
-                "shellcheckCode": code_num,
-                "shellcheckLevel": str(diag.get("level") or "").lower(),
-            },
-        }
-        results.append(result)
+        results.append(
+            {
+                "ruleId": rid,
+                "level": to_level(d.get("level")),
+                "message": {"text": str(d.get("message") or rid)},
+                "locations": [loc],
+                "partialFingerprints": fingerprints(d),
+                "properties": {
+                    "shellcheckCode": d.get("code"),
+                    "shellcheckLevel": (d.get("level") or "").lower(),
+                },
+            }
+        )
 
-    sarif: Dict[str, Any] = {
+    return {
         "version": SARIF_VERSION,
         "$schema": SARIF_SCHEMA,
         "runs": [
@@ -194,7 +127,7 @@ def shellcheck_to_sarif(
                         "name": tool_name or "shellcheck",
                         "version": tool_version or "",
                         "informationUri": "https://www.shellcheck.net/",
-                        "rules": list(rules_index.values()),
+                        "rules": list(rules.values()),
                     }
                 },
                 "originalUriBaseIds": {
@@ -205,20 +138,14 @@ def shellcheck_to_sarif(
             }
         ],
     }
-    return sarif
 
 
-def save_sarif(data: Dict[str, Any], path: Union[str, Path]) -> None:
+def save_sarif(data: dict, path: str):
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)
     print(f"SARIF written to {p}")
-
-
-# ----------------------------
-# Entrypoint
-# ----------------------------
 
 
 def main() -> int:
@@ -228,11 +155,10 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-
-    input_json, output_sarif, tool_name, tool_version = sys.argv[1:5]
-    diagnostics = load_shellcheck_json(input_json)
-    sarif_log = shellcheck_to_sarif(diagnostics, tool_name, tool_version)
-    save_sarif(sarif_log, output_sarif)
+    inp, outp, name, ver = sys.argv[1:5]
+    diags = load_shellcheck_json(inp)
+    sarif = shellcheck_to_sarif(diags, name, ver)
+    save_sarif(sarif, outp)
     return 0
 
 
