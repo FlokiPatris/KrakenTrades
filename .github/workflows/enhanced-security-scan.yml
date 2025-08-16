@@ -159,6 +159,19 @@ jobs:
           SHELLCHECK_FAIL_ON: ${{ env.SHELLCHECK_FAIL_ON }}
         run: bash .ci/bin/run_shellcheck.sh
 
+      - name: 📊 ShellCheck sanity checks
+        if: always()
+        run: |
+          set -euo pipefail
+          ROOT_DIR="${ROOT_DIR:-$(pwd)}"
+          sarif_dir="${SARIF_DIR:-sarif-reports}"
+          echo "🔍 Shell files count:"
+          find "$ROOT_DIR" -type f -name "*.sh" | wc -l || true
+          echo "🔍 Issues in JSON:"
+          grep -c '"code":"SC' "${sarif_dir}/shellcheck.json" || true
+          echo "🔍 Results in SARIF:"
+          jq -r '.runs[0].results | length' "${sarif_dir}/shellcheck.sarif" || true
+
       - name: ⬆️ Upload ShellCheck SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
         uses: github/codeql-action/upload-sarif@v3
@@ -166,6 +179,7 @@ jobs:
           sarif_file: ${{ env.SARIF_DIR }}/shellcheck.sarif
           category: code-shellcheck
           wait-for-processing: true
+
 
       # -------------------------
       # 🐍 Bandit — Static Code Analysis
