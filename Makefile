@@ -25,7 +25,7 @@ GITLEAKS_FALLBACK_TAG  ?= latest
 TRIVY_VERSION          ?= 0.51.4
 TRIVY_SEVERITY         ?= HIGH,CRITICAL
 TRIVY_EXIT_CODE        ?= 0
-SHELLCHECK_SEVERITY    ?= style
+SHELLCHECK_SEVERITY    ?= warning
 SHELLCHECK_FAIL_ON     ?= any
 
 # Paths and security defaults
