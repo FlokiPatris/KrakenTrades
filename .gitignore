@@ -10,19 +10,10 @@ dist/
 build/
 *.log
 
-# Poetry
-poetry.lock
-.env
-*.env
-.cache/
-*.venv/
-venv/
-.mypy_cache/
-.pytest_cache/
-
 # Docker
 .git
 .venv
+venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -31,6 +22,8 @@ __pycache__/
 .mypy_cache/
 .env
 .env.*
+*.env
+*.venv/
 node_modules/
 dist/
 build/
@@ -55,3 +48,6 @@ kraken_parsed_trades.xlsx
 # System junk
 .DS_Store
 Thumbs.db
+
+# Sarif
+sarif-reports/
