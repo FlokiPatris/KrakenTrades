@@ -1,21 +1,23 @@
-# File: .github/workflows/appsec-security.yml
-# 🔐 AppSec — Security & Secrets Scan
-# Modular, DRY, CI-friendly workflow for secret detection and code security scanning
-
-name: "🔐 AppSec — Security & Secrets Scan"
+# 🔐 AppSec — Security, Secrets & Shell Script Scan
+name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
   push:
     branches: ["**"]
+    paths:
+      - '**.sh'
+      - '.ci/bin/**'
   pull_request:
     branches: ["**"]
+    paths:
+      - '**.sh'
+      - '.ci/bin/**'
   workflow_dispatch:
 
 permissions:
   contents: read
   security-events: write
 
-# Prevents duplicate runs on the same ref
 concurrency:
   group: appsec-scan-${{ github.ref }}
   cancel-in-progress: true
@@ -33,12 +35,11 @@ env:
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
   GITLEAKS_IMAGE_TAG: "8.18.2"
   GITLEAKS_FALLBACK_TAG: "latest"
+  TRIVY_VERSION: "0.51.4"
+  TRIVY_EXIT_CODE: "0"
 
-  # Only upload SARIF for trusted contexts (push or PR from same repo)
+  # Upload SARIF only when safe
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
-
-  # Optional: comma-separated list of required secret names for validation
-  REQUIRED_SECRETS: ""
 
 jobs:
   security:
@@ -55,15 +56,29 @@ jobs:
       - name: 📥 Checkout source code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1   # shallow clone for faster runs
+          fetch-depth: 1
 
       - name: 🐍 Setup Python runtime
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
 
-      - name: 🔎 Validate required secrets
-        run: bash .ci/bin/common.sh validate_required_secrets
+      - name: 🧰 Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends make ca-certificates git
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 🔎 Validate required secrets (non-fatal if helper missing)
+        run: |
+          set -euo pipefail
+          if [[ -x ".ci/bin/common.sh" ]]; then
+            bash .ci/bin/common.sh validate_required_secrets
+          else
+            echo "Note: .ci/bin/common.sh not found; skipping required secrets validation."
+          fi
 
       # -------------------------
       # 🔍 Trivy — FS scan → SARIF
@@ -72,12 +87,12 @@ jobs:
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
           SARIF_FILE: trivy.sarif
-          TRIVY_VERSION: "0.51.4"
+          TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
           TRIVY_SEVERITY: "HIGH,CRITICAL"
           TRIVY_TARGET: "."
           TRIVY_MODE: fs
           TRIVY_IGNORE_UNFIXED: "true"
-          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE || 0 }} # 0 = do not fail build, 1 = fail if findings match severity
+          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
         run: bash .ci/bin/run_trivy.sh
 
       - name: ⬆️ Upload Trivy SARIF
@@ -130,12 +145,25 @@ jobs:
           category: deps-pip-audit
           wait-for-processing: true
 
-      # Fail pipeline if pip-audit detected vulnerabilities
       - name: ❌ Fail build if pip-audit found vulnerabilities
         if: ${{ env.AUDIT_STATUS != '0' }}
         run: |
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
+
+      # -------------------------
+      # 🐚 ShellCheck — Lint Shell Scripts
+      # -------------------------
+      - name: 🐚 ShellCheck (lint → SARIF)
+        run: make shellcheck
+
+      - name: ⬆️ Upload ShellCheck SARIF
+        if: always() && env.UPLOAD_SARIF == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_DIR }}/shellcheck.sarif
+          category: lint-shellcheck
+          wait-for-processing: true
 
       # -------------------------
       # 🐍 Bandit — Static Code Analysis
@@ -161,10 +189,9 @@ jobs:
       - name: 🧹 Harden artifacts & audit log
         if: always()
         run: |
-          # Lock down SARIF files and directories
-          find "${SARIF_DIR}" -type f -exec chmod 600 {} \; 2>/dev/null || true
-          find "${SARIF_DIR}" -type d -exec chmod 700 {} \; 2>/dev/null || true
-
-          # Append audit trail for CI compliance
-          echo "Audit: docker scans used non-root, read-only FS, cap-drop=ALL, network none."
-          echo "Audit: no secrets echoed; SARIF files mode 600; uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
+          set -euo pipefail
+          if [[ -d "${SARIF_DIR}" ]]; then
+            find "${SARIF_DIR}" -type f -name "*.sarif" -exec chmod 600 {} \; 2>/dev/null || true
+            find "${SARIF_DIR}" -type d -exec chmod 700 {} \; 2>/dev/null || true
+          fi
+          echo "Audit: SARIF permissions set, uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
