@@ -1,6 +1,4 @@
 # 🔐 AppSec — Security, Secrets & Shell Script Scan
-# Modular, DRY, CI-friendly workflow for secret detection, code security scanning, and shell script linting
-
 name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
@@ -18,14 +16,11 @@ concurrency:
   group: appsec-scan-${{ github.ref }}
   cancel-in-progress: true
 
-# -------------------------
-# 🌍 Global environment vars
-# -------------------------
 env:
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
 
-  # 📌 Pinned tool versions for reproducibility
+  # 📌 Pinned tool versions
   PIP_AUDIT_VERSION: "2.9.0"
   BANDIT_VERSION: "1.8.6"
   GITLEAKS_IMAGE: "zricethezav/gitleaks"
@@ -34,7 +29,6 @@ env:
   TRIVY_VERSION: "0.51.4"
   TRIVY_EXIT_CODE: "0"
 
-  # Upload SARIF only when safe
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 jobs:
@@ -46,39 +40,34 @@ jobs:
         shell: bash
 
     steps:
-      # -------------------------
-      # 🛠️ Setup
-      # -------------------------
       - name: 📥 Checkout source code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: 🐍 Setup Python runtime
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 🧰 Install system dependencies
+      - name: 🧰 Install dependencies
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends make ca-certificates git
+          sudo apt-get install -y --no-install-recommends make ca-certificates git shellcheck
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🔎 Validate required secrets (non-fatal if helper missing)
+      - name: 🔎 Validate required secrets
         run: |
           set -euo pipefail
           if [[ -x ".ci/bin/common.sh" ]]; then
             bash .ci/bin/common.sh validate_required_secrets
           else
-            echo "Note: .ci/bin/common.sh not found; skipping required secrets validation."
+            echo "Note: .ci/bin/common.sh not found; skipping."
           fi
 
-      # -------------------------
-      # 🔍 Trivy — FS scan → SARIF
-      # -------------------------
+      # ---------- Trivy ----------
       - name: 🔍 Trivy (filesystem)
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
@@ -99,9 +88,7 @@ jobs:
           category: sec-trivy
           wait-for-processing: true
 
-      # -------------------------
-      # 🔑 Gitleaks — Secret Scanning
-      # -------------------------
+      # ---------- Gitleaks ----------
       - name: 🔑 Gitleaks (secrets → SARIF)
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
@@ -124,9 +111,7 @@ jobs:
           echo "🚨 Secrets detected by Gitleaks — failing pipeline."
           exit 1
 
-      # -------------------------
-      # 📦 pip-audit — Dependency Security
-      # -------------------------
+      # ---------- pip-audit ----------
       - name: 📦 pip-audit (deps → SARIF)
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
@@ -147,11 +132,12 @@ jobs:
           echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
           exit 1
 
-      # -------------------------
-      # 🐚 ShellCheck — Lint Shell Scripts
-      # -------------------------
+      # ---------- ShellCheck ----------
       - name: 🐚 ShellCheck (lint → SARIF)
-        run: make shellcheck
+        run: |
+          mkdir -p "${SARIF_DIR}"
+          # Find all shell scripts tracked in git and run ShellCheck with SARIF output
+          git ls-files '*.sh' | xargs shellcheck --external-sources -f sarif > "${SARIF_DIR}/shellcheck.sarif"
 
       - name: ⬆️ Upload ShellCheck SARIF
         if: always() && env.UPLOAD_SARIF == 'true'
@@ -161,9 +147,7 @@ jobs:
           category: lint-shellcheck
           wait-for-processing: true
 
-      # -------------------------
-      # 🐍 Bandit — Static Code Analysis
-      # -------------------------
+      # ---------- Bandit ----------
       - name: 🐍 Bandit (code security → SARIF)
         env:
           SARIF_DIR: ${{ env.SARIF_DIR }}
@@ -179,9 +163,7 @@ jobs:
           category: code-bandit
           wait-for-processing: true
 
-      # -------------------------
-      # 🧹 Post-Scan Hardening & Audit Notes
-      # -------------------------
+      # ---------- Harden SARIF artifacts ----------
       - name: 🧹 Harden artifacts & audit log
         if: always()
         run: |
