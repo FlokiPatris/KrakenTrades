@@ -155,31 +155,28 @@ jobs:
       - name: 📊 ShellCheck sanity checks
         if: always()
         run: |
-          # don't abort the whole job on first non‑zero
-          set +e
+          set +e  # diagnostics only
           ROOT_DIR="${ROOT_DIR:-$(pwd)}"
           sarif_dir="${SARIF_DIR:-sarif-reports}"
 
-          echo "🔍 Shell files discovered:"
-          find "$ROOT_DIR" -type f \( -name "*.sh" -o -name "*.bash" -o -perm -u+x -exec head -n1 {} \; | grep -qE '^#!.*\b(sh|bash|dash|ksh|zsh)\b' \) -print || true
+          echo "🔧 ShellCheck version:"
+          shellcheck --version || true
 
-          echo "🔍 Shell file count:"
-          find "$ROOT_DIR" -type f -name "*.sh" | wc -l || true
+          echo "🔍 Shell files by glob (*.sh, *.bash):"
+          find "$ROOT_DIR" -type f \( -name "*.sh" -o -name "*.bash" \) -print || true
 
-          echo "🔍 Issues in JSON:"
-          if [[ -f "${sarif_dir}/shellcheck.json" ]]; then
-            grep -c '"code":"SC' "${sarif_dir}/shellcheck.json" || true
-          else
-            echo "0"
-          fi
+          echo "🔍 Executable files with shell shebang:"
+          while IFS= read -r -d '' f; do
+            if head -n1 "$f" | grep -qE '^#!.*\b(bash|sh|dash|ksh|zsh)\b'; then
+              echo "$f"
+            fi
+          done < <(find "$ROOT_DIR" -type f -perm -u+x -print0)
 
-          echo "🔍 Results in SARIF:"
-          if [[ -f "${sarif_dir}/shellcheck.sarif" ]]; then
-            jq -r '.runs[0].results | length' "${sarif_dir}/shellcheck.sarif" || true
-          else
-            echo "0"
-          fi
+          echo "📄 JSON issues count:"
+          [[ -f "${sarif_dir}/shellcheck.json" ]] && grep -c '"code":"SC' "${sarif_dir}/shellcheck.json" || echo "0"
 
+          echo "📄 SARIF results count:"
+          [[ -f "${sarif_dir}/shellcheck.sarif" ]] && jq -r '.runs[0].results | length' "${sarif_dir}/shellcheck.sarif" || echo "0"
 
 
       # -------------------------
