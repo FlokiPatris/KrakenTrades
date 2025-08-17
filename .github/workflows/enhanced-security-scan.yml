@@ -8,12 +8,6 @@
 name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
-  push:
-    branches: ["**"]
-    paths:
-      - "**.sh"
-      - ".ci/bin/**"
-      - "Makefile"
   pull_request:
     branches: ["**"]
     paths:
@@ -105,7 +99,7 @@ jobs:
           TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
         run: |
           set -euo pipefail
-          # The Makefile’s `appsec` target runs: shellcheck, bandit, pip-audit, gitleaks, trivy
+          # The Makefiles `appsec` target runs: shellcheck, bandit, pip-audit, gitleaks, trivy
           # Each .ci/bin/* script must write any gating statuses to $GITHUB_ENV (e.g., GITLEAKS_STATUS, AUDIT_STATUS).
           make appsec
 
