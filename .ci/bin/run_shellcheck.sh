@@ -27,7 +27,7 @@ if [[ ${#files[@]} -eq 0 ]]; then
 fi
 
 log_info "Running shellcheck on ${#files[@]} files"
-# shellcheck -f json prints to stdout; redirect to JSON file
+# Run shellcheck -f json prints to stdout; redirect to JSON file
 shellcheck -f json "${files[@]}" > "${json_out}" 2>/dev/null || true
 
 log_info "Converting shellcheck JSON to SARIF"
