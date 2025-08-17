@@ -77,16 +77,16 @@ ensure-dirs:
 # ==========================================================
 local-all: ensure-dirs
 	# Run security + quality stack locally in one shot
-	SARIF_OUT_DIR="$(PWD)/$(SARIF_DIR)" \
-	GITHUB_ENV=/dev/null \
-	$(MAKE) shellcheck || true
-	python -m bandit -r . -f json -o "$(SARIF_DIR)/bandit.json" || true
-	$(MAKE) pip-audit || true
-	gitleaks detect --source . --report-format sarif --report-path "$(SARIF_DIR)/gitleaks.sarif" || true
-	$(MAKE) trivy || true
-	$(MAKE) hadolint || true
-	$(MAKE) test || true
-	$(MAKE) fmt || true
+	@export GITHUB_ENV=/dev/null; \
+	SARIF_OUT_DIR="$(PWD)/$(SARIF_DIR)"; \
+	$(MAKE) shellcheck || true; \
+	$(MAKE) bandit || true; \
+	$(MAKE) pip-audit || true; \
+	$(MAKE) gitleaks || true; \
+	$(MAKE) trivy || true; \
+	$(MAKE) hadolint || true; \
+	$(MAKE) test || true; \
+	$(MAKE) fmt || true; \
 	$(MAKE) lint || true
 
 # ==========================================================

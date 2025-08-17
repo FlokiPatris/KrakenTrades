@@ -1,100 +1,39 @@
-# Purpose: Run Bandit, convert findings to SARIF, and keep CI green.
-# Behavior: Non-blocking; outputs SARIF for GitHub Security tab.
-# CI: Strict shell, secure perms, minimal noise.
+#!/usr/bin/env bash
+# run_bandit.sh — run bandit, produce JSON, convert to SARIF
 
-set -Eeuo pipefail
-umask 077
-export LC_ALL=C.UTF-8 LANG=C.UTF-8
+source ".ci/common/strict_mode.sh"
+source ".ci/common/config.sh"
+source ".ci/common/sarif_utils.sh"
+source ".ci/common/installations.sh"
 
-trap 'c=$?; echo "::error title=run_bandit.sh failed,line=${LINENO}::exit ${c}"; exit ${c}' ERR
+# Paths
+root="$(repo_root)"
+sarif_dir="$(ensure_sarif_dir "${SARIF_OUT_DIR}")"
+json_out="${sarif_dir}/bandit.json"
+sarif_out="${sarif_dir}/bandit.sarif"
 
-# -----------------------------
-# Config (env overrides allowed)
-# -----------------------------
-: "${SARIF_DIR:=sarif-reports}"
-: "${BANDIT_VERSION:=1.8.6}"
-: "${GITHUB_WORKSPACE:=${PWD}}"
-: "${BANDIT_SEVERITY_LEVEL:=low}"   # low|medium|high
-: "${BANDIT_QUIET:=true}"
-: "${BANDIT_TARGETS:=${GITHUB_WORKSPACE}}"
-: "${BANDIT_EXCLUDE:=}"             # comma-separated paths for -x
-: "${SKIP_PIP_INSTALL:=false}"
+# Ensure bandit present (install if necessary)
+install_bandit_or_exit || log_warn "install_bandit_or_exit returned non-zero; continuing"
 
-# -----------------------------
-# Helpers
-# -----------------------------
-write_empty_sarif() {
-  local out="$1" tool="$2" ver="$3"
-  mkdir -p "$(dirname "$out")"
-  printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"%s","version":"%s"}},"results":[]}]} \n' \
-    "$tool" "$ver" > "$out"
-  chmod 600 "$out" 2>/dev/null || true
+log_info "Running bandit (root=${root}) -> ${json_out}"
+# Run bandit but never fail CI due to execution error (findings do not cause non-zero here)
+bandit -r "${root}" -f json -o "${json_out}" || true
+
+log_info "Converting bandit JSON to SARIF: ${sarif_out}"
+python3 .ci/bin/sarif_convert.py bandit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" || {
+  log_warn "sarif_convert.py failed for bandit; creating empty SARIF"
+  python3 - <<'PY'
+import json, sys
+sys.stdout.write(json.dumps({"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":""}},"results":[]}]}))
+PY
+  # write fallback file
+  echo '{"version":"2.1.0","runs":[]}' > "${sarif_out}" || true
 }
 
-harden_artifact() { chmod 600 "$1" 2>/dev/null || true; }
-
-# -----------------------------
-# Install Bandit (optional)
-# -----------------------------
-if [[ "${SKIP_PIP_INSTALL}" != "true" ]]; then
-  echo "::group::Install Bandit ${BANDIT_VERSION}"
-  python -m pip install --upgrade pip >/dev/null
-  pip install --disable-pip-version-check --no-cache-dir "bandit[toml]==${BANDIT_VERSION}"
-  echo "::endgroup::"
-else
-  echo "::notice title=Bandit install skipped::SKIP_PIP_INSTALL=${SKIP_PIP_INSTALL}"
+harden_file "${sarif_out}"
+# remove intermediate JSON to avoid leaking sensitive paths (optional)
+if [[ -f "${json_out}" ]]; then
+  chmod 600 "${json_out}" || true
 fi
 
-# -----------------------------
-# Run Bandit → JSON (non-fatal)
-# -----------------------------
-mkdir -p "${SARIF_DIR}"
-tmpdir="${RUNNER_TEMP:-/tmp}"
-BANDIT_JSON="$(mktemp -p "${tmpdir}" bandit-XXXX.json)"
-
-echo "::group::Run Bandit scan"
-bandit_args=(
-  "-r" "${BANDIT_TARGETS}"
-  "--severity-level" "${BANDIT_SEVERITY_LEVEL}"
-  "-f" "json"
-  "-o" "${BANDIT_JSON}"
-)
-[[ "${BANDIT_QUIET}" == "true" ]] && bandit_args+=("-q")
-[[ -n "${BANDIT_EXCLUDE}" ]] && bandit_args+=("-x" "${BANDIT_EXCLUDE}")
-
-bandit "${bandit_args[@]}" || true
-echo "::endgroup::"
-
-# Summary log
-python - <<'PY'
-import json, os
-path = os.environ.get("BANDIT_JSON","")
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    results = data.get("results") or []
-    print(f"::notice title=Bandit summary::results={len(results)}")
-    for r in results[:5]:
-        print(f"::notice title=Bandit sample::{r.get('test_id')} {r.get('issue_severity')} {r.get('filename')}:{r.get('line_number')}")
-except Exception as e:
-    print(f"::warning title=Bandit JSON parse failed::{e}")
-PY
-
-# -----------------------------
-# Convert JSON → SARIF
-# -----------------------------
-export BANDIT_JSON_PATH="${BANDIT_JSON}" BANDIT_VERSION SARIF_DIR GITHUB_WORKSPACE
-
-echo "::group::Convert Bandit JSON to SARIF"
-if ! python "$(dirname "$0")/bandit_to_sarif.py"; then
-  echo "::warning title=bandit_to_sarif.py failed::Writing empty SARIF"
-  write_empty_sarif "${SARIF_DIR}/bandit.sarif" "bandit" "${BANDIT_VERSION}"
-fi
-harden_artifact "${SARIF_DIR}/bandit.sarif"
-echo "::endgroup::"
-
-# -----------------------------
-# Cleanup
-# -----------------------------
-rm -f -- "${BANDIT_JSON}"
-exit 0
+log_info "Bandit sarif: ${sarif_out}"
