@@ -1,6 +1,6 @@
 from file_management import (
-    extract_kraken_trade_records_from_pdf,
     build_trade_dataframe,
+    extract_kraken_trade_records_from_pdf,
     style_excel,
     write_excel,
 )
