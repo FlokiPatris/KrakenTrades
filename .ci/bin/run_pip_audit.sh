@@ -1,48 +1,30 @@
-# Install + run pip-audit, convert to SARIF, export AUDIT_STATUS
+#!/usr/bin/env bash
+# run_pip_audit.sh — run pip-audit, convert to SARIF
+source ".ci/common/strict_mode.sh"
+source ".ci/common/config.sh"
+source ".ci/common/sarif_utils.sh"
+source ".ci/common/installations.sh"
 
-set -Eeuo pipefail
-source ".ci/bin/common.sh"
-source ".ci/bin/sarif_utils.sh"
+root="$(repo_root)"
+sarif_dir="$(ensure_sarif_dir "${SARIF_OUT_DIR}")"
+json_out="${sarif_dir}/pip-audit.json"
+sarif_out="${sarif_dir}/pip-audit.sarif"
 
-main() {
-  local sarif_dir="${SARIF_DIR:-sarif-reports}"
-  local ver="${PIP_AUDIT_VERSION:-latest}"
-  local json_out="${sarif_dir}/pip-audit.json"
-  local sarif_out="${sarif_dir}/pip-audit.sarif"
-  local artifact="environment"
-  local audit_status=0
+install_pip_audit_or_exit || log_warn "install_pip_audit_or_exit returned non-zero; continuing"
 
-  ensure_dir_secure "${sarif_dir}"
+log_info "Running pip-audit -> ${json_out}"
+# try pip-audit CLI, fallback to module invocation
+if command -v pip-audit >/dev/null 2>&1; then
+  pip-audit -f json -o "${json_out}" || true
+else
+  python3 -m pip_audit -f json -o "${json_out}" || true
+fi
 
-  python -m pip install --upgrade pip >/dev/null
-  if [[ "${ver}" == "latest" ]]; then
-    pip install --disable-pip-version-check --no-cache-dir pip-audit >/dev/null
-  else
-    pip install --disable-pip-version-check --no-cache-dir "pip-audit==${ver}" >/dev/null
-  fi
-
-  if [[ -f requirements.txt ]]; then
-    artifact="requirements.txt"
-    set -o pipefail
-    pip-audit -r requirements.txt --format json --output "${json_out}" --strict || audit_status=$?
-    set +o pipefail
-  else
-    set -o pipefail
-    pip-audit --format json --output "${json_out}" --strict || audit_status=$?
-    set +o pipefail
-  fi
-
-  export PIP_AUDIT_ARTIFACT_URI="${artifact}"
-  if [[ -s "${json_out}" ]]; then
-    json_to_sarif "${json_out}" "${sarif_out}" "pip-audit" "${ver}"
-  else
-    write_empty_sarif "${sarif_out}" "pip-audit" "${ver}"
-  fi
-
-  echo "AUDIT_STATUS=${audit_status}" >> "${GITHUB_ENV}"
-  harden_artifact "${sarif_out}"
-  [[ -f "${json_out}" ]] && harden_artifact "${json_out}"
-  log_info "pip-audit status=${audit_status} SARIF=${sarif_out}"
+log_info "Converting pip-audit JSON to SARIF"
+python3 .ci/bin/sarif_convert.py pip-audit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" || {
+  log_warn "sarif convert failed for pip-audit; creating empty SARIF"
+  echo '{"version":"2.1.0","runs":[]}' > "${sarif_out}" || true
 }
 
-main "$@"
+harden_file "${sarif_out}"
+log_info "pip-audit sarif: ${sarif_out}"

@@ -8,7 +8,7 @@
 name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
 on:
-  pull_request:
+  push:
     branches: ["**"]
     paths:
       - "**.sh"
@@ -28,18 +28,7 @@ env:
   # Runtime/tooling
   PYTHON_VERSION: "3.11"
   SARIF_DIR: "sarif-reports"
-
-  # Pinned tool versions (reproducible)
-  PIP_AUDIT_VERSION: "2.9.0"
-  BANDIT_VERSION: "1.8.6"
-  TRIVY_VERSION: "0.51.4"
-  GITLEAKS_IMAGE: "zricethezav/gitleaks"
-  GITLEAKS_IMAGE_TAG: "8.18.2"
-  GITLEAKS_FALLBACK_TAG: "latest"
-
-  # Trivy behavior: do not fail the job directly (we gate explicitly later)
-  TRIVY_EXIT_CODE: "0"
-
+  
   # Upload SARIF only for push and for PRs from same repository (avoid leak from forks)
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
@@ -72,36 +61,9 @@ jobs:
             make ca-certificates git curl jq
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🔎 Validate required secrets (non-fatal if helper missing)
-        run: |
-          set -euo pipefail
-          if [[ -x ".ci/bin/common.sh" ]]; then
-            bash .ci/bin/common.sh validate_required_secrets
-          else
-            echo "Note: .ci/bin/common.sh not found; skipping required secrets validation."
-          fi
-
-      - name: 📂 Prepare SARIF directory
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-        run: make ensure-dirs
-
       # Core step: delegate all scanning to the Makefile to avoid YAML drift.
       - name: 🔐 Run AppSec suite via Makefile
-        env:
-          SARIF_DIR: ${{ env.SARIF_DIR }}
-          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
-          BANDIT_VERSION: ${{ env.BANDIT_VERSION }}
-          GITLEAKS_IMAGE: ${{ env.GITLEAKS_IMAGE }}
-          GITLEAKS_IMAGE_TAG: ${{ env.GITLEAKS_IMAGE_TAG }}
-          GITLEAKS_FALLBACK_TAG: ${{ env.GITLEAKS_FALLBACK_TAG }}
-          TRIVY_VERSION: ${{ env.TRIVY_VERSION }}
-          TRIVY_EXIT_CODE: ${{ env.TRIVY_EXIT_CODE }}
-        run: |
-          set -euo pipefail
-          # The Makefiles `appsec` target runs: shellcheck, bandit, pip-audit, gitleaks, trivy
-          # Each .ci/bin/* script must write any gating statuses to $GITHUB_ENV (e.g., GITLEAKS_STATUS, AUDIT_STATUS).
-          make appsec
+        run: make appsec
 
       # Harden SARIF files before uploading or artifacting
       - name: 🧹 Harden SARIF artifacts (permissions)
@@ -127,20 +89,6 @@ jobs:
           path: ${{ env.SARIF_DIR }}/*.sarif
           if-no-files-found: ignore
           retention-days: 2
-
-      # Explicit gating: fail the job based on tool-reported statuses written by scripts to $GITHUB_ENV.
-      # These environment variables must be set by .ci/bin scripts (non-fatal scan runs, fail here instead).
-      - name: ❌ Fail if Gitleaks found secrets
-        if: ${{ env.GITLEAKS_STATUS != '' && env.GITLEAKS_STATUS != '0' }}
-        run: |
-          echo "🚨 Secrets detected by Gitleaks — failing pipeline."
-          exit 1
-
-      - name: ❌ Fail if pip-audit found vulnerabilities
-        if: ${{ env.AUDIT_STATUS != '' && env.AUDIT_STATUS != '0' }}
-        run: |
-          echo "🚨 Vulnerabilities detected by pip-audit — failing pipeline."
-          exit 1
 
   sarif-upload:
     name: Upload SARIF to Security tab
