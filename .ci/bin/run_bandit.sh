@@ -20,15 +20,7 @@ log_info "Running bandit (root=${root}) -> ${json_out}"
 bandit -r "${root}" -f json -o "${json_out}" || true
 
 log_info "Converting bandit JSON to SARIF: ${sarif_out}"
-python3 .ci/bin/sarif_convert.py bandit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" || {
-  log_warn "sarif_convert.py failed for bandit; creating empty SARIF"
-  python3 - <<'PY'
-import json, sys
-sys.stdout.write(json.dumps({"version":"2.1.0","runs":[{"tool":{"driver":{"name":"bandit","version":""}},"results":[]}]}))
-PY
-  # write fallback file
-  echo '{"version":"2.1.0","runs":[]}' > "${sarif_out}" || true
-}
+python3 .ci/bin/sarif_convert.py bandit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}"
 
 harden_file "${sarif_out}"
 # remove intermediate JSON to avoid leaking sensitive paths (optional)

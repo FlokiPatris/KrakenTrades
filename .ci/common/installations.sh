@@ -5,7 +5,7 @@
 # Usage example:
 #   install_bandit_or_exit
 #   install_pip_audit_or_exit
-# They will be NO-OP if the tool is already on PATH or SKIP flags are set.
+# They will be NO-OP if the tool is already on PATH.
 
 # shellcheck disable=SC1090,SC2154
 
@@ -41,10 +41,6 @@ _pip_install() {
 
 # Install Bandit (Python security linter)
 install_bandit_or_exit() {
-  if [[ "${SKIP_PIP_INSTALL:-false}" == "true" || "${SKIP_INSTALLS:-false}" == "true" ]]; then
-    log_info "Skipping Bandit install due to SKIP_* flags."
-    return 0
-  fi
   if command -v bandit >/dev/null 2>&1; then
     log_info "bandit already installed, skipping."
     return 0
@@ -60,10 +56,6 @@ install_bandit_or_exit() {
 
 # Install pip-audit (Python package vulnerability scanner)
 install_pip_audit_or_exit() {
-  if [[ "${SKIP_PIP_INSTALL:-false}" == "true" || "${SKIP_INSTALLS:-false}" == "true" ]]; then
-    log_info "Skipping pip-audit install due to SKIP_* flags."
-    return 0
-  fi
   if command -v pip-audit >/dev/null 2>&1 || _python_cmd >/dev/null 2>&1 && "$(_python_cmd)" -m pip show pip-audit >/dev/null 2>&1; then
     log_info "pip-audit already available, skipping."
     return 0
@@ -87,10 +79,6 @@ install_shellcheck_or_exit() {
     log_info "shellcheck already available, skipping."
     return 0
   fi
-  if [[ "${SKIP_INSTALLS:-false}" == "true" ]]; then
-    log_info "SKIP_INSTALLS set; skipping shellcheck install. Please ensure shellcheck exists in CI image."
-    return 0
-  fi
 
   log_warn "shellcheck not found. Please install it via package manager (apt/brew) or use an image that includes it."
   return 1
@@ -104,10 +92,6 @@ install_shellcheck_or_exit() {
 install_trivy_or_exit() {
   if command -v trivy >/dev/null 2>&1; then
     log_info "trivy already available, skipping."
-    return 0
-  fi
-  if [[ "${SKIP_INSTALLS:-false}" == "true" ]]; then
-    log_info "SKIP_INSTALLS set; skipping trivy install. Ensure trivy present in CI image if you expect scan to run."
     return 0
   fi
 
@@ -157,10 +141,6 @@ install_gitleaks_or_exit() {
   # gitleaks is typically run via docker image in our runners.
   if [[ -n "$(command -v gitleaks 2>/dev/null)" ]]; then
     log_info "gitleaks binary already present; skipping."
-    return 0
-  fi
-  if [[ "${SKIP_INSTALLS:-false}" == "true" ]]; then
-    log_info "SKIP_INSTALLS set; skipping gitleaks install."
     return 0
   fi
 
