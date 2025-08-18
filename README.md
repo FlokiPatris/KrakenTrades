@@ -30,13 +30,13 @@ cd KrakenTrades
 
 ### 2️⃣ Run via Docker
 ```bash
-docker-compose up --build
+make docker-build
+make docker-run
 ```
 
 ### 3️⃣ Or run locally
 ```bash
-pip install -r requirements.txt
-python main.py
+make test
 ```
 
 ---
