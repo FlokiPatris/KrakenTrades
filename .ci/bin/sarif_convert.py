@@ -288,6 +288,10 @@ def main() -> int:
 
     if data is None:
         # Write empty SARIF
+        print(
+            f"[WARN] No usable input at {args.infile} — writing empty SARIF",
+            file=sys.stderr,
+        )
         report = _empty_sarif_for(args.tool)
         _write_sarif(report, args.outfile)
         return 0

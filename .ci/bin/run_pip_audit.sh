@@ -21,10 +21,7 @@ else
 fi
 
 log_info "Converting pip-audit JSON to SARIF"
-python3 .ci/bin/sarif_convert.py pip-audit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" || {
-  log_warn "sarif convert failed for pip-audit; creating empty SARIF"
-  echo '{"version":"2.1.0","runs":[]}' > "${sarif_out}" || true
-}
+python3 .ci/bin/sarif_convert.py pip-audit --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" 
 
 harden_file "${sarif_out}"
 log_info "pip-audit sarif: ${sarif_out}"

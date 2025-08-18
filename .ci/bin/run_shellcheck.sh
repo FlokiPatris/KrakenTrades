@@ -20,21 +20,12 @@ if [[ ${#files[@]} -eq 0 ]]; then
   mapfile -t files < <(find "${root}" -type f -name '*.sh' -not -path '*/.git/*' || true)
 fi
 
-if [[ ${#files[@]} -eq 0 ]]; then
-  log_info "No shell scripts found; creating empty SARIF"
-  python3 .ci/bin/sarif_convert.py shellcheck --in /dev/null --out "${sarif_out}" --base-uri "${root}" || true
-  exit 0
-fi
-
 log_info "Running shellcheck on ${#files[@]} files"
 # Run shellcheck -f json prints to stdout; redirect to JSON file
 shellcheck -f json "${files[@]}" > "${json_out}" 2>/dev/null || true
 
 log_info "Converting shellcheck JSON to SARIF"
-python3 .ci/bin/sarif_convert.py shellcheck --in "${json_out}" --out "${sarif_out}" --base-uri "${root}" || {
-  log_warn "sarif conversion for shellcheck failed; writing empty SARIF"
-  echo '{"version":"2.1.0","runs":[]}' > "${sarif_out}" || true
-}
+python3 .ci/bin/sarif_convert.py shellcheck --in "${json_out}" --out "${sarif_out}" --base-uri "${root}"
 
 harden_file "${sarif_out}"
 log_info "ShellCheck sarif: ${sarif_out}"
