@@ -1,45 +1,45 @@
 #!/usr/bin/env bash
-# installations.sh — Idempotent installer helpers for tools used in CI.
-# Source after strict_mode.sh, config.sh, and sarif_utils.sh.
+# installations.sh — Idempotent installer helpers for CI tools.
 #
-# Usage example:
+# Usage:
+#   source ".ci/common/installations.sh"
 #   install_bandit_or_exit
 #   install_pip_audit_or_exit
-# They will be NO-OP if the tool is already on PATH.
-
-# shellcheck disable=SC1090,SC2154
-
-##############################
+#
+# Tools are NO-OP if already available.
+#
+# -------------------------------
 # Helper Functions
-##############################
+# -------------------------------
 
-# Determine the Python command to use
+# Determine Python command
 _python_cmd() {
   if command -v python3 >/dev/null 2>&1; then
-    printf "%s" "python3"
+    printf "python3"
   elif command -v python >/dev/null 2>&1; then
-    printf "%s" "python"
+    printf "python"
   else
     return 1
   fi
 }
 
 # Wrapper for pip installation
+# Args:
+#   $1 - package to install (e.g., "bandit[toml]")
 _pip_install() {
   local pkg="$1"
   local py
-  py="$(_python_cmd)" || die "python not found; cannot install $pkg"
-  # Best-effort pip upgrade
+  py="$(_python_cmd)" || die "Python not found; cannot install ${pkg}"
+
   "$py" -m pip install --upgrade pip >/dev/null 2>&1 || log_warn "pip upgrade failed"
-  log_info "Installing Python package: $pkg"
+  log_info "Installing Python package: ${pkg}"
   "$py" -m pip install --disable-pip-version-check --no-cache-dir "$pkg"
 }
 
-##############################
+# -------------------------------
 # Python Tool Installers
-##############################
+# -------------------------------
 
-# Install Bandit (Python security linter)
 install_bandit_or_exit() {
   if command -v bandit >/dev/null 2>&1; then
     log_info "bandit already installed, skipping."
@@ -54,9 +54,9 @@ install_bandit_or_exit() {
   fi
 }
 
-# Install pip-audit (Python package vulnerability scanner)
 install_pip_audit_or_exit() {
-  if command -v pip-audit >/dev/null 2>&1 || _python_cmd >/dev/null 2>&1 && "$(_python_cmd)" -m pip show pip-audit >/dev/null 2>&1; then
+  if command -v pip-audit >/dev/null 2>&1 || \
+     (_python_cmd >/dev/null 2>&1 && "$(_python_cmd)" -m pip show pip-audit >/dev/null 2>&1); then
     log_info "pip-audit already available, skipping."
     return 0
   fi
@@ -69,78 +69,68 @@ install_pip_audit_or_exit() {
   fi
 }
 
-##############################
+# -------------------------------
 # Shell Utilities Installers
-##############################
+# -------------------------------
 
-# Install ShellCheck (shell script linter)
 install_shellcheck_or_exit() {
   if command -v shellcheck >/dev/null 2>&1; then
-    log_info "shellcheck already available, skipping."
+    log_info "shellcheck already installed, skipping."
     return 0
   fi
 
-  log_warn "shellcheck not found. Please install it via package manager (apt/brew) or use an image that includes it."
+  log_warn "shellcheck not found. Install via package manager (apt/brew) or use an image that includes it."
   return 1
 }
 
-##############################
+# -------------------------------
 # Security Tools Installers
-##############################
+# -------------------------------
 
-# Install Trivy (container/image vulnerability scanner)
 install_trivy_or_exit() {
   if command -v trivy >/dev/null 2>&1; then
-    log_info "trivy already available, skipping."
+    log_info "trivy already installed, skipping."
     return 0
   fi
 
   local ver="${TRIVY_VERSION:-}"
   if [[ -z "$ver" ]]; then
-    log_warn "TRIVY_VERSION not set; skipping automatic Trivy install."
+    log_warn "TRIVY_VERSION not set; skipping automatic install."
     return 1
   fi
 
-  # Best-effort download for Linux/amd64
   local tarball="trivy_${ver}_Linux-64bit.tar.gz"
   local url="https://github.com/aquasecurity/trivy/releases/download/v${ver}/${tarball}"
   local tmpdir
   tmpdir="$(mktemp -d)" || { log_warn "mktemp failed"; return 1; }
 
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "${tmpdir}/${tarball}" "${url}" || { log_warn "curl failed to fetch trivy"; rm -rf "${tmpdir}"; return 1; }
+    curl -fsSL -o "${tmpdir}/${tarball}" "${url}" || { log_warn "curl failed"; rm -rf "${tmpdir}"; return 1; }
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "${tmpdir}/${tarball}" "${url}" || { log_warn "wget failed to fetch trivy"; rm -rf "${tmpdir}"; return 1; }
+    wget -q -O "${tmpdir}/${tarball}" "${url}" || { log_warn "wget failed"; rm -rf "${tmpdir}"; return 1; }
   else
     log_warn "Neither curl nor wget available; cannot auto-install trivy."
     rm -rf "${tmpdir}"
     return 1
   fi
 
-  tar -xzf "${tmpdir}/${tarball}" -C "${tmpdir}" || { log_warn "tar failed"; rm -rf "${tmpdir}"; return 1; }
+  tar -xzf "${tmpdir}/${tarball}" -C "${tmpdir}" || { log_warn "tar extraction failed"; rm -rf "${tmpdir}"; return 1; }
 
-  # Attempt to move binary to /usr/local/bin
-  if mv "${tmpdir}"/*/trivy /usr/local/bin/trivy 2>/dev/null; then
-    chmod 0755 /usr/local/bin/trivy || true
-    log_info "trivy installed to /usr/local/bin/trivy"
-  elif mv "${tmpdir}/trivy" /usr/local/bin/trivy 2>/dev/null; then
+  if mv "${tmpdir}"/*/trivy /usr/local/bin/trivy 2>/dev/null || mv "${tmpdir}/trivy" /usr/local/bin/trivy 2>/dev/null; then
     chmod 0755 /usr/local/bin/trivy || true
     log_info "trivy installed to /usr/local/bin/trivy"
   else
-    log_warn "Could not move trivy to /usr/local/bin (permission denied). Using local copy in ${tmpdir} for this run."
+    log_warn "Could not move trivy to /usr/local/bin; using local tmpdir copy for this session."
     export PATH="${tmpdir}:${PATH}"
-    log_info "Prepended ${tmpdir} to PATH for this session"
+    log_info "Prepended ${tmpdir} to PATH"
   fi
 
   rm -rf "${tmpdir}" || true
-  return 0
 }
 
-# Gitleaks (secret detection) guidance
 install_gitleaks_or_exit() {
-  # gitleaks is typically run via docker image in our runners.
-  if [[ -n "$(command -v gitleaks 2>/dev/null)" ]]; then
-    log_info "gitleaks binary already present; skipping."
+  if command -v gitleaks >/dev/null 2>&1; then
+    log_info "gitleaks already installed, skipping."
     return 0
   fi
 

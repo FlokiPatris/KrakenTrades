@@ -4,7 +4,6 @@ from kraken_core import TradeColumn
 
 
 # === MANUAL INJECTIONS ===
-# TODO: Load manual trade data from a secure config or external file.
 def manual_onyx_injection(buys: pd.DataFrame) -> pd.DataFrame:
     manual_buy = pd.DataFrame(
         [

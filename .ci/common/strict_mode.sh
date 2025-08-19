@@ -1,31 +1,41 @@
 #!/usr/bin/env bash
-# strict_mode.sh — Enable strict shell flags and tiny logging helpers.
+# strict_mode.sh — Enable strict shell flags and provide tiny logging helpers.
 #
-# Source this as the very first file in any CI script:
+# Usage:
 #   source ".ci/common/strict_mode.sh"
 #
 # Purpose:
-# - Enforce fail-fast behavior: set -Eeuo pipefail
-# - Use safe IFS
-# - Provide log_info / log_warn / log_error / die helpers
-# - Prevent leaking secrets to logs by default (no echo of envs here)
+#   - Fail-fast behavior for CI scripts
+#   - Safe IFS and predictable shell environment
+#   - Timestamped logging helpers: log_info, log_warn, log_error, die
+#   - Avoid leaking secrets by default
 
-set -Eeuo pipefail
-IFS=$'\n\t'
-# make shell more predictable in some environments
+# -------------------------------
+# Strict shell options
+# -------------------------------
+set -Eeuo pipefail         # Exit on errors, undefined variables, and failed pipes
+IFS=$'\n\t'                # Safe word splitting
+
+# Make shell more predictable in certain environments
 shopt -s lastpipe 2>/dev/null || true
-umask 077
+umask 077                   # Restrictive default file creation permissions
 
-# Locale fallback (avoids Unicode surprises in some CI images)
+# -------------------------------
+# Locale fallback
+# -------------------------------
 export LC_ALL="${LC_ALL:-C.UTF-8}"
 export LANG="${LANG:-C.UTF-8}"
 
-# Timestamped logging helpers (send to stderr)
+# -------------------------------
+# Logging helpers
+# -------------------------------
 _ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 log_info()  { printf '[%s] [INFO]  %s\n' "$(_ts)" "$*" >&2; }
 log_warn()  { printf '[%s] [WARN]  %s\n' "$(_ts)" "$*" >&2; }
 log_error() { printf '[%s] [ERROR] %s\n' "$(_ts)" "$*" >&2; }
 die()       { log_error "$*"; exit 1; }
 
-# Trap ERR and print contextual info for CI observability
+# -------------------------------
+# Error trapping for CI observability
+# -------------------------------
 trap 'rc=$?; log_error "Error in ${BASH_SOURCE[0]} at line ${LINENO}: exit ${rc}"; exit ${rc}' ERR
