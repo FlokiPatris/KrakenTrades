@@ -1,42 +1,86 @@
-permissions:
-  contents: read
 name: Trades Report
 
+permissions:
+  contents: read
+
 on:
-  workflow_dispatch:  # manual trigger
-  schedule:           # optional: daily run
-    - cron: "0 6 * * *"   # every day at 06:00 UTC
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"  # daily at 06:00 UTC
+
+env:
+  # Centralized paths and filenames
+  UPLOAD_DIR: uploads
+  REPORT_FILE: kraken_parsed_trades.xlsx
+  DOCKER_IMAGE: krakentrades:latest
+  SMTP_SERVER: smtp.gmail.com
+  SMTP_PORT: 465
+  EMAIL_SUBJECT: "Daily Kraken Trades Report"
+  EMAIL_BODY: "Please find attached today's Kraken trades report."
 
 jobs:
   build-and-report:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      # Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt update && sudo apt install -y make docker.io
+      # Setup Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run Makefile target
-        run: make docker-build && make docker-run
+      # Build Docker image
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ env.DOCKER_IMAGE }}
 
+      # Validate required secrets
+      - name: Validate environment secrets
+        run: |
+          set -e
+          for var in EMAIL_USER REPORT_RECIPIENT EMAIL_PASS; do
+            if [ -z "${{ secrets.$var }}" ]; then
+              echo "ERROR: Secret $var is not defined!"
+              exit 1
+            fi
+          done
+
+      # Create upload directory
+      - name: Prepare upload directory
+        run: mkdir -p ${{ env.UPLOAD_DIR }}
+
+      # Run Docker container safely
+      - name: Run Docker container to generate report
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/${{ env.UPLOAD_DIR }}:/app/${{ env.UPLOAD_DIR }} \
+            --user $(id -u):$(id -g) \
+            --read-only \
+            ${{ env.DOCKER_IMAGE }}
+
+      # Upload the generated report as artifact
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
           name: kraken-trades
-          path: uploads/kraken_parsed_trades.xlsx
+          path: ${{ env.UPLOAD_DIR }}/${{ env.REPORT_FILE }}
 
+      # Send report by email
       - name: Send report by email
         if: success()
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
+          server_address: ${{ env.SMTP_SERVER }}
+          server_port: ${{ env.SMTP_PORT }}
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
-          subject: "Daily Kraken Trades Report"
+          subject: ${{ env.EMAIL_SUBJECT }}
           to: ${{ secrets.REPORT_RECIPIENT }}
-          from: Kraken Bot <${{ secrets.EMAIL_USER }}>
-          body: "Please find attached today's Kraken trades report."
-          attachments: uploads/kraken_parsed_trades.xlsx
-
+          from: "Kraken Bot <${{ secrets.EMAIL_USER }}>"
+          body: ${{ env.EMAIL_BODY }}
+          attachments: ${{ env.UPLOAD_DIR }}/${{ env.REPORT_FILE }}
