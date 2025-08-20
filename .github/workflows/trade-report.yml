@@ -1,0 +1,45 @@
+name: Trades Report
+
+on:
+  workflow_dispatch:  # manual trigger
+  schedule:           # optional: daily run
+    - cron: "0 6 * * *"   # every day at 06:00 UTC
+
+jobs:
+  build-and-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t krakentrades:latest .
+
+      - name: Run trades parser
+        run: |
+          mkdir -p uploads
+          docker run --rm \
+            -v ${{ github.workspace }}/uploads:/app/uploads \
+            krakentrades:latest
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kraken-trades
+          path: uploads/kraken_parsed_trades.xlsx
+
+      # Optional email sending
+      - name: Send report by email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: "Daily Kraken Trades Report"
+          to: ${{ secrets.REPORT_RECIPIENT }}
+          from: Kraken Bot <${{ secrets.EMAIL_USER }}>
+          body: "Please find attached today's Kraken trades report."
+          attachments: uploads/kraken_parsed_trades.xlsx

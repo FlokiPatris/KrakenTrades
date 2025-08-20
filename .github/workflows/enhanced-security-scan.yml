@@ -11,12 +11,6 @@ name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 # Workflow triggers
 # ------------------------
 on:
-  push:
-    branches: ["**"]
-    paths:
-      - "**.sh"          # Any shell script changes
-      - ".ci/bin/**"     # CI helper scripts
-      - "Makefile"       # Makefile changes
   pull_request:
     branches: ["**"]
     paths:
