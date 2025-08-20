@@ -61,7 +61,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --chown=${APP_UID}:${APP_GID} . ${APP_HOME}
 
 # Create a writable folder for outputs
-RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR}
+RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR} #TODO: Is needed?
 
 # Drop privileges
 USER ${APP_UID}:${APP_GID}

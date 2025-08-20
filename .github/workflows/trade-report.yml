@@ -74,13 +74,16 @@ jobs:
             fi
           done
 
-      # Run Docker container
-      - name: Run Docker container to generate report
+      # Run Docker container to generate report
+      - name: Run Docker container
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}/${{ env.UPLOAD_DIR }}:/app/${{ env.UPLOAD_DIR }} \
-            --user $(id -u):$(id -g) \
+            -v ${{ github.workspace }}/${{ env.DOWNLOAD_DIR }}:/app/downloads \
+            -v ${{ github.workspace }}/${{ env.UPLOAD_DIR }}:/app/uploads \
+            -e KRAKEN_TRADES_PDF=/app/downloads/${{ env.PDF_FILE }} \
+            -e PARSED_TRADES_EXCEL=/app/uploads/${{ env.REPORT_FILE }} \
             ${{ env.DOCKER_IMAGE }}
+
 
       # Upload the generated report as artifact
       - name: Upload report artifact
