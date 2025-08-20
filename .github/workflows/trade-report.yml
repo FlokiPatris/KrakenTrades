@@ -34,7 +34,10 @@ jobs:
         run: pip install pydrive2
 
       - name: Prepare upload directory
-        run: mkdir -p ${{ env.UPLOAD_DIR }}
+        run: |
+          mkdir -p ${{ env.UPLOAD_DIR }}
+          sudo chown 10001:10001 ${{ env.UPLOAD_DIR }}
+
 
       - name: Download trades.pdf from Google Drive
         env:
@@ -72,6 +75,7 @@ jobs:
             -v ${{ github.workspace }}/uploads:/app/uploads:rw \
             -e UPLOAD_DIR=/app/uploads \
             ${{ env.DOCKER_IMAGE }}
+
 
 
       - name: Upload report artifact
