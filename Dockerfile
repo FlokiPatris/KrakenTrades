@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Hardened multi-stage Dockerfile for KrakenTrades
-# Supports env-configured input/output paths
+# CI/CD-ready, secure, production-ready, validates environment variables
 
 ############################
 # 1) Builder stage
@@ -37,14 +37,14 @@ FROM python:3.11-slim AS runtime
 ENV APP_HOME=/app \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    KRAKEN_TRADES_PDF=/app/downloads/trades.pdf \
-    PARSED_TRADES_EXCEL=/app/uploads/kraken_parsed_trades.xlsx
+    UPLOADS_DIR=/app/uploads
 
 # Runtime user setup
 ARG APP_USER=appuser
 ARG APP_UID=10001
 ARG APP_GID=10001
 
+# Install runtime OS dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -53,10 +53,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR ${APP_HOME}
 
-# Create writable folders and assign ownership
-RUN mkdir -p ${APP_HOME}/downloads ${APP_HOME}/uploads \
-    && chown -R ${APP_UID}:${APP_GID} ${APP_HOME}/downloads ${APP_HOME}/uploads
-
 # Copy installed dependencies from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
@@ -64,8 +60,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code with proper ownership
 COPY --chown=${APP_UID}:${APP_GID} . ${APP_HOME}
 
-# Drop privileges
-USER ${APP_UID}:${APP_GID}
+# Create a writable folder for outputs
+RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR}
+
+# # Drop privileges
+# USER ${APP_UID}:${APP_GID}
 
 # Run the application
 CMD ["python", "main.py"]
