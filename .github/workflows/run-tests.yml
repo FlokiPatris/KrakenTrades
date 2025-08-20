@@ -40,6 +40,12 @@ jobs:
           cache: pip
 
       # ------------------------------------------------------
+      # Configure UPLOADS_DIR to a writable location in CI
+      # ------------------------------------------------------
+      - name: 📂 Configure UPLOADS_DIR
+        run: echo "UPLOADS_DIR=${GITHUB_WORKSPACE}/uploads" >> $GITHUB_ENV
+
+      # ------------------------------------------------------
       # Run tests with coverage using Makefile
       # (Makefile handles dependency installation & cleanup)
       # ------------------------------------------------------
