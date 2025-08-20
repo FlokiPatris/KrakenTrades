@@ -39,7 +39,6 @@ jobs:
           mkdir -p ${{ env.UPLOAD_DIR }}
           sudo chown 10001:10001 ${{ env.UPLOAD_DIR }}
 
-
       - name: Download trades.pdf from Google Drive
         env:
           GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
@@ -76,8 +75,6 @@ jobs:
             -v ${{ github.workspace }}/uploads:${{ env.UPLOAD_DIR_PATH }}:rw \
             -e UPLOAD_DIR=${{ env.UPLOAD_DIR_PATH }} \
             ${{ env.DOCKER_IMAGE }}
-
-
 
       - name: Upload report artifact
         uses: actions/upload-artifact@v4

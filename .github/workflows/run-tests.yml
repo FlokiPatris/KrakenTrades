@@ -1,0 +1,57 @@
+name: "🧪 Python Tests & Coverage"
+
+on:
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: ~/.cache/pip
+
+jobs:
+  test:
+    name: Run pytest + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # ------------------------------------------------------
+      # Checkout the repo
+      # ------------------------------------------------------
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------
+      # Setup Python with pip caching
+      # ------------------------------------------------------
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      # ------------------------------------------------------
+      # Run tests with coverage using Makefile
+      # (Makefile handles dependency installation & cleanup)
+      # ------------------------------------------------------
+      - name: 🧪 Run tests + coverage
+        run: make test
+
+      # ------------------------------------------------------
+      # Upload XML coverage report for CI integration
+      # ------------------------------------------------------
+      - name: 📄 Upload XML coverage (CI tools)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore

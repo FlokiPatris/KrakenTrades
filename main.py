@@ -24,7 +24,7 @@ from src.kraken_core import custom_logger
 
 
 def main() -> None:
-    """Run the full Kraken trade PDF → Excel pipeline."""
+    """Run the full Kraken trade PDF → Excel."""
     try:
         # Resolve input PDF path
         input_pdf: Path = FileLocations.KRAKEN_TRADES_PDF
