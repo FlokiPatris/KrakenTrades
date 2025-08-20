@@ -80,7 +80,6 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/${{ env.UPLOAD_DIR }}:/app/${{ env.UPLOAD_DIR }} \
             --user $(id -u):$(id -g) \
-            --read-only \
             ${{ env.DOCKER_IMAGE }}
 
       # Upload the generated report as artifact
