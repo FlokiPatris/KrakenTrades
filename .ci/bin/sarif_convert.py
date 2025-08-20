@@ -8,7 +8,7 @@ Usage:
 Design:
 - Tool-specific parsers -> normalized (rules, results).
 - Shared SARIF builders.
-- No external deps (stdlib only).
+- No external dependencies (stdlib only).
 - Writes SARIF with file mode 0o600.
 """
 
@@ -20,13 +20,20 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+# -------------------------------
+# Constants
+# -------------------------------
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = (
     "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json"
 )
 
 
+# -------------------------------
+# Utility functions
+# -------------------------------
 def _rel_uri(path: str, base: Optional[str] = None) -> str:
+    """Return relative URI of path from base directory."""
     if not path:
         return ""
     try:
@@ -38,6 +45,7 @@ def _rel_uri(path: str, base: Optional[str] = None) -> str:
 
 
 def _level_from_severity(sev: str) -> str:
+    """Map tool severity to SARIF level."""
     s = (sev or "").lower()
     if s in {"critical", "high", "error", "fatal"}:
         return "error"
@@ -47,6 +55,7 @@ def _level_from_severity(sev: str) -> str:
 
 
 def _make_rule(rule_id: str, name: str, help_uri: str = "") -> Dict[str, Any]:
+    """Construct a SARIF rule object."""
     return {
         "id": rule_id,
         "name": name or rule_id,
@@ -59,6 +68,7 @@ def _make_rule(rule_id: str, name: str, help_uri: str = "") -> Dict[str, Any]:
 def _sarif_report(
     driver_name: str, rules: List[Dict[str, Any]], results: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
+    """Build a complete SARIF report dictionary."""
     return {
         "version": SARIF_VERSION,
         "$schema": SARIF_SCHEMA,
@@ -78,6 +88,7 @@ def _sarif_report(
 
 
 def _write_sarif(report: Dict[str, Any], out_path: str) -> None:
+    """Write SARIF JSON to file and set restrictive permissions."""
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
@@ -88,13 +99,28 @@ def _write_sarif(report: Dict[str, Any], out_path: str) -> None:
 
 
 def _empty_sarif_for(tool_name: str) -> Dict[str, Any]:
+    """Return an empty SARIF report for a given tool."""
     return _sarif_report(tool_name, [], [])
 
 
-# ------------ converters -------------
+def _read_input(path: str) -> Optional[Any]:
+    """Read JSON input from a file; return None on failure."""
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError:
+        return None
+
+
+# -------------------------------
+# Converters
+# -------------------------------
 def conv_bandit(
     in_json: Dict[str, Any], base_uri: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Convert Bandit JSON to SARIF rules and results."""
     results = in_json.get("results", []) or []
     rule_map: Dict[str, Dict[str, Any]] = {}
     sarif_results: List[Dict[str, Any]] = []
@@ -124,10 +150,7 @@ def conv_bandit(
                         }
                     }
                 ],
-                "properties": {
-                    "severity": severity,
-                    "more_info": more_info,
-                },
+                "properties": {"severity": severity, "more_info": more_info},
             }
         )
 
@@ -137,14 +160,12 @@ def conv_bandit(
 def conv_pip_audit(
     in_json: Any, base_uri: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    # pip-audit JSON can be dict with "dependencies" or a list; be resilient.
+    """Convert pip-audit JSON to SARIF rules and results."""
     deps = []
     if isinstance(in_json, dict) and "dependencies" in in_json:
         deps = in_json.get("dependencies") or []
     elif isinstance(in_json, list):
         deps = in_json
-    else:
-        deps = []
 
     rule_map: Dict[str, Dict[str, Any]] = {}
     sarif_results: List[Dict[str, Any]] = []
@@ -190,12 +211,14 @@ def conv_pip_audit(
                     },
                 }
             )
+
     return list(rule_map.values()), sarif_results
 
 
 def conv_shellcheck(
     in_json: Any, base_uri: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Convert ShellCheck JSON to SARIF rules and results."""
     findings: List[Dict[str, Any]] = []
 
     if isinstance(in_json, list):
@@ -207,9 +230,6 @@ def conv_shellcheck(
             for w in f.get("warnings", []) or []:
                 w["file"] = f.get("file", w.get("file"))
                 findings.append(w)
-    else:
-        # unknown format: try to treat as dict with items
-        findings = []
 
     rule_map: Dict[str, Dict[str, Any]] = {}
     sarif_results: List[Dict[str, Any]] = []
@@ -218,11 +238,7 @@ def conv_shellcheck(
         filename = _rel_uri(f.get("file", ""), base_uri)
         level = f.get("level", "warning")
         code = str(f.get("code", "SC0000"))
-        if code.isdigit():
-            rule_id = f"SC{code}"
-        else:
-            rule_id = code
-
+        rule_id = f"SC{code}" if code.isdigit() else code
         message = f.get("message", "")
         line = int(f.get("line") or 1)
         column = int(f.get("column") or 1)
@@ -247,53 +263,43 @@ def conv_shellcheck(
                 "properties": {"shellcheck_level": level},
             }
         )
+
     return list(rule_map.values()), sarif_results
 
 
-# -------- CLI entry point --------
-def _read_input(path: str) -> Optional[Any]:
-    if not os.path.exists(path) or os.path.getsize(path) == 0:
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except json.JSONDecodeError:
-        # input possibly not JSON — return None and allow empty SARIF output
-        return None
-
-
+# -------------------------------
+# CLI Entry Point
+# -------------------------------
 def main() -> int:
-    p = argparse.ArgumentParser(prog="sarif_convert.py")
-    p.add_argument(
+    parser = argparse.ArgumentParser(prog="sarif_convert.py")
+    parser.add_argument(
         "tool",
         choices=["bandit", "pip-audit", "shellcheck"],
         help="Tool format to convert",
     )
-    p.add_argument(
+    parser.add_argument(
         "--in", dest="infile", required=True, help="Input JSON file from the tool"
     )
-    p.add_argument(
+    parser.add_argument(
         "--out", dest="outfile", required=True, help="Output SARIF file path"
     )
-    p.add_argument(
+    parser.add_argument(
         "--base-uri",
         dest="base_uri",
         default=None,
         help="Repository root for relative URIs",
     )
-    args = p.parse_args()
+    args = parser.parse_args()
 
     data = _read_input(args.infile)
     base = args.base_uri or os.getcwd()
 
     if data is None:
-        # Write empty SARIF
         print(
             f"[WARN] No usable input at {args.infile} — writing empty SARIF",
             file=sys.stderr,
         )
-        report = _empty_sarif_for(args.tool)
-        _write_sarif(report, args.outfile)
+        _write_sarif(_empty_sarif_for(args.tool), args.outfile)
         return 0
 
     if args.tool == "bandit":
@@ -302,7 +308,7 @@ def main() -> int:
     elif args.tool == "pip-audit":
         rules, results = conv_pip_audit(data, base)
         report = _sarif_report("pip-audit", rules, results)
-    else:  # shellcheck
+    else:
         rules, results = conv_shellcheck(data, base)
         report = _sarif_report("ShellCheck", rules, results)
 

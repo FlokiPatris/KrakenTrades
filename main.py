@@ -1,10 +1,10 @@
-from file_management import (
+from src.file_management import (
     build_trade_dataframe,
     extract_kraken_trade_records_from_pdf,
     style_excel,
     write_excel,
 )
-from kraken_core import FileLocations
+from src.kraken_core import FileLocations
 
 
 def main() -> None:

@@ -36,7 +36,7 @@ build/
 
 # Test coverage & reports
 htmlcov/
-coverage.xml
+*coverage.xml
 *.cover
 *.py,cover
 nosetests.xml
