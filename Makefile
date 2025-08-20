@@ -150,7 +150,7 @@ pre-commit:
 # ==========================================================
 # Testing
 # ==========================================================
-test: install-deps clean
+test: clean
 	@echo "→ Running pytest with coverage"
 	@$(PYTHON) -m pytest tests/ \
 		--cov=. \
@@ -160,7 +160,7 @@ test: install-deps clean
 		--disable-warnings
 
 # -------------------- Debug target -----------------------
-test-debug: install-deps clean
+test-debug: clean
 	@echo "→ Running pytest in debug mode"
 	@$(PYTHON) -m pytest -s -o log_cli_level=INFO tests/ \
 		--cov=. \

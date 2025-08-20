@@ -41,10 +41,10 @@ jobs:
           cache: pip
 
       # ------------------------------------------------------
-      # Install dependencies required to fetch PDF
+      # Install Python dependencies using Makefile
       # ------------------------------------------------------
       - name: 📦 Install Python dependencies
-        run: pip install -r requirements.txt pydrive2
+        run: make install-deps
 
       # ------------------------------------------------------
       # Prepare uploads folder (writable in CI)
@@ -62,7 +62,7 @@ jobs:
 
       # ------------------------------------------------------
       # Run tests with coverage using Makefile
-      # (Makefile handles dependency installation & cleanup)
+      # (Makefile handles cleanup)
       # ------------------------------------------------------
       - name: 🧪 Run tests + coverage
         run: make test
