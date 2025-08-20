@@ -13,19 +13,20 @@ permissions:
 env:
   PYTHON_VERSION: "3.11"
   PIP_CACHE_DIR: ~/.cache/pip
+  UPLOADS_DIR: uploads
 
 jobs:
   test:
     name: Run pytest + coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
 
     steps:
       # ------------------------------------------------------
-      # Checkout the repo
+      # Checkout repository
       # ------------------------------------------------------
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
@@ -40,10 +41,24 @@ jobs:
           cache: pip
 
       # ------------------------------------------------------
-      # Configure UPLOADS_DIR to a writable location in CI
+      # Install dependencies required to fetch PDF
       # ------------------------------------------------------
-      - name: 📂 Configure UPLOADS_DIR
-        run: echo "UPLOADS_DIR=${GITHUB_WORKSPACE}/uploads" >> $GITHUB_ENV
+      - name: 📦 Install Python dependencies
+        run: pip install -r requirements.txt pydrive2
+
+      # ------------------------------------------------------
+      # Prepare uploads folder (writable in CI)
+      # ------------------------------------------------------
+      - name: 📂 Prepare uploads directory
+        run: mkdir -p ${{ github.workspace }}/uploads
+
+      # ------------------------------------------------------
+      # Download trades.pdf from Google Drive
+      # ------------------------------------------------------
+      - name: 📄 Download trades.pdf
+        env:
+          GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
+        run: python scripts/get_trades_pdf.py
 
       # ------------------------------------------------------
       # Run tests with coverage using Makefile
