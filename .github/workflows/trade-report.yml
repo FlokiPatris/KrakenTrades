@@ -10,20 +10,15 @@ on:
 jobs:
   build-and-report:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t krakentrades:latest .
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y make docker.io
 
-      - name: Run trades parser
-        run: |
-          mkdir -p uploads
-          docker run --rm \
-            -v ${{ github.workspace }}/uploads:/app/uploads \
-            krakentrades:latest
+      - name: Run Makefile target
+        run: make docker-build && make docker-run
 
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
@@ -31,7 +26,6 @@ jobs:
           name: kraken-trades
           path: uploads/kraken_parsed_trades.xlsx
 
-      # Optional email sending
       - name: Send report by email
         if: success()
         uses: dawidd6/action-send-mail@v3
@@ -45,3 +39,4 @@ jobs:
           from: Kraken Bot <${{ secrets.EMAIL_USER }}>
           body: "Please find attached today's Kraken trades report."
           attachments: uploads/kraken_parsed_trades.xlsx
+
