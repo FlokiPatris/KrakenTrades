@@ -1,0 +1,78 @@
+name: "🧪 Python Tests & Coverage"
+
+on:
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: ~/.cache/pip
+  UPLOADS_DIR: uploads
+
+jobs:
+  test:
+    name: Run pytest + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # ------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------
+      # Setup Python with pip caching
+      # ------------------------------------------------------
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      # ------------------------------------------------------
+      # Install Python dependencies using Makefile
+      # ------------------------------------------------------
+      - name: 📦 Install Python dependencies
+        run: make install-deps
+
+      # ------------------------------------------------------
+      # Prepare uploads folder (writable in CI)
+      # ------------------------------------------------------
+      - name: 📂 Prepare uploads directory
+        run: mkdir -p ${{ github.workspace }}/uploads
+
+      # ------------------------------------------------------
+      # Download trades.pdf from Google Drive
+      # ------------------------------------------------------
+      - name: 📄 Download trades.pdf
+        env:
+          GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
+        run: python scripts/get_trades_pdf.py
+
+      # ------------------------------------------------------
+      # Run tests with coverage using Makefile
+      # (Makefile handles cleanup)
+      # ------------------------------------------------------
+      - name: 🧪 Run tests + coverage
+        run: make test
+
+      # ------------------------------------------------------
+      # Upload XML coverage report for CI integration
+      # ------------------------------------------------------
+      - name: 📄 Upload XML coverage (CI tools)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore

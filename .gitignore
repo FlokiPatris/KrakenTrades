@@ -1,4 +1,6 @@
-# Python
+# ==========================================================
+# Python artifacts
+# ==========================================================
 __pycache__/
 *.py[cod]
 *.pyo
@@ -10,44 +12,50 @@ dist/
 build/
 *.log
 
-# Docker
-.git
-.venv
+# ==========================================================
+# Docker & virtual environments
+# ==========================================================
+.venv/
 venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
 .env
 .env.*
 *.env
 *.venv/
 node_modules/
-dist/
-build/
-*.sarif
-.DS_Store
 
-# PyCharm
+# ==========================================================
+# IDEs / Editors
+# ==========================================================
 .idea/
 .vscode/
 
-# Test coverage & reports
-htmlcov/
-*coverage.xml
-*.cover
-*.py,cover
-nosetests.xml
-test-results/
-junit.xml
-trades.*
-kraken_parsed_trades.xlsx
-
-# System junk
+# ==========================================================
+# System files
+# ==========================================================
 .DS_Store
 Thumbs.db
 
-# Sarif
+# ==========================================================
+# SARIF reports
+# ==========================================================
+*.sarif
 sarif-reports/
+
+# ==========================================================
+# Pytest & coverage outputs
+# ==========================================================
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+coverage.xml
+*coverage.xml
+*.coverage
+*.cover
+*.py,cover
+nosetests.xml
+junit.xml
+
+# Optional test artifacts
+test-results/
+trades.*
+kraken_parsed_trades.xlsx

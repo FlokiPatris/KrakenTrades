@@ -23,7 +23,7 @@ class FileLocations:
     )
 
     # Uploads directory for Docker runtime
-    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", "/data/uploads"))
+    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", "uploads"))
 
 
 # === API Configuration ===

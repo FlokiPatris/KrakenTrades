@@ -40,6 +40,8 @@ GRAY := \033[0;37m
 NC := \033[0m
 
 .DEFAULT_GOAL := help
+TEST_OUTPUT_DIRS := tests/output tests/tmp logs
+CACHE_DIRS := .pytest_cache .mypy_cache .ruff_cache .venv build dist $(SARIF_DIR)
 
 # ----- Declare phony targets -----
 .PHONY: help ensure-dirs local-all appsec \
@@ -71,6 +73,10 @@ help:
 
 ensure-dirs:
 	@mkdir -p "$(SARIF_DIR)"
+
+install-deps:
+	@echo "→ Installing core dependencies"
+	@$(PIP) install -q -r requirements.txt
 
 # ==========================================================
 # Local full pipeline (developer convenience)
@@ -121,7 +127,7 @@ hadolint:
 	@echo "✔ hadolint completed."
 
 # ==========================================================
-# Quality & testing
+# Quality
 # ==========================================================
 fmt:
 	@echo "→ format (black + isort)"
@@ -135,16 +141,32 @@ lint:
 	@$(PYTHON) -m flake8 .
 	@$(PYTHON) -m mypy --ignore-missing-imports .
 
-test:
-	@echo "→ test (pytest + coverage)"
-	@$(PIP) install -q pytest pytest-cov
-	@$(PYTHON) -m pytest -q --cov=. --cov-report=term-missing
-
 pre-commit:
 	@echo "→ pre-commit install & run"
 	@$(PIP) install -q pre-commit
 	@pre-commit install
 	@pre-commit run --all-files || true
+
+# ==========================================================
+# Testing
+# ==========================================================
+test: clean
+	@echo "→ Running pytest with coverage"
+	@$(PYTHON) -m pytest tests/ \
+		--cov=. \
+		--cov-report=term-missing \
+		--cov-report=xml \
+		--maxfail=1 \
+		--disable-warnings
+
+# -------------------- Debug target -----------------------
+test-debug: clean
+	@echo "→ Running pytest in debug mode"
+	@$(PYTHON) -m pytest -s -o log_cli_level=INFO tests/ \
+		--cov=. \
+		--cov-report=term-missing \
+		--cov-report=html \
+		--maxfail=1
 
 # ==========================================================
 # Docker/Compose helpers
@@ -169,7 +191,9 @@ down:
 # Cleanup
 # ==========================================================
 clean:
-	@echo "→ clean build/cache/SARIF artifacts"
-	@rm -rf .pytest_cache .mypy_cache .ruff_cache .venv build dist "$(SARIF_DIR)"
+	@echo "→ Cleaning project artifacts"
+	@rm -rf $(CACHE_DIRS)
+	@rm -f .coverage coverage.xml junit.xml
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@rm -rf $(TEST_OUTPUT_DIRS)
 	@echo "✔ clean complete."
