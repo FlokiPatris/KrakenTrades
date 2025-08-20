@@ -38,6 +38,7 @@ jobs:
           context: .
           push: false
           tags: ${{ env.DOCKER_IMAGE }}
+          load: true   # <- this is crucial
 
       # Validate required secrets safely
       - name: Validate environment secrets
