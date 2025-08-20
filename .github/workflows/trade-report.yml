@@ -9,7 +9,6 @@ on:
     - cron: "0 6 * * *"  # daily at 06:00 UTC
 
 env:
-  # Centralized paths and filenames
   UPLOAD_DIR: uploads
   REPORT_FILE: kraken_parsed_trades.xlsx
   DOCKER_IMAGE: krakentrades:latest
@@ -23,9 +22,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
+      # Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pip install pydrive2
+
+      # Prepare upload folder
+      - name: Prepare upload directory
+        run: mkdir -p ${{ env.UPLOAD_DIR }}
+
+      # Download trades.pdf using your script
+      - name: Download trades.pdf from Google Drive
+        env:
+          GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
+        run: python scripts/get_trades_pdf.py
 
       # Setup Docker Buildx
       - name: Set up Docker Buildx
@@ -38,10 +57,10 @@ jobs:
           context: .
           push: false
           tags: ${{ env.DOCKER_IMAGE }}
-          load: true   # <- this is crucial
+          load: true
 
-      # Validate required secrets safely
-      - name: Validate environment secrets
+      # Validate email secrets
+      - name: Validate secrets
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
@@ -55,11 +74,7 @@ jobs:
             fi
           done
 
-      # Create upload directory
-      - name: Prepare upload directory
-        run: mkdir -p ${{ env.UPLOAD_DIR }}
-
-      # Run Docker container safely (non-root, read-only)
+      # Run Docker container
       - name: Run Docker container to generate report
         run: |
           docker run --rm \
