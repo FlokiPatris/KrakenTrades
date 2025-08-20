@@ -2,24 +2,28 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-
 from dotenv import load_dotenv
 
-# Load .env file
+# Load .env if present
 load_dotenv()
 
 
+# === File Locations ===
 @dataclass(frozen=True)
 class FileLocations:
     """
     Centralized file path configuration.
-    Reads from environment variables defined in .env.
+    Reads from environment variables or falls back to defaults.
     """
 
+    # Input / Output file names
     KRAKEN_TRADES_PDF: Path = Path(os.getenv("KRAKEN_TRADES_PDF", "trades.pdf"))
     PARSED_TRADES_EXCEL: Path = Path(
         os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx")
     )
+
+    # Uploads directory for Docker runtime
+    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", "/data/uploads"))
 
 
 # === API Configuration ===
@@ -57,9 +61,9 @@ class TradeRegex:
         """,
         re.VERBOSE,
     )
-    # TODO why no compile here?
-    PAIR_CURRENCY = r"/([A-Z]+)"
-    PAIR_TOKEN = r"^([A-Z0-9]+)/"
+
+    PAIR_CURRENCY = re.compile(r"/([A-Z]+)")
+    PAIR_TOKEN = re.compile(r"^([A-Z0-9]+)/")
 
 
 # === Excel Styling ===

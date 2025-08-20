@@ -9,9 +9,9 @@ on:
     - cron: "0 6 * * *"  # daily at 06:00 UTC
 
 env:
-  # Centralized paths and filenames
   UPLOAD_DIR: uploads
-  REPORT_FILE: kraken_parsed_trades.xlsx
+  UPLOAD_DIR_PATH: /app/uploads
+  REPORT_FILE: kraken_trade_summary.xlsx
   DOCKER_IMAGE: krakentrades:latest
   SMTP_SERVER: smtp.gmail.com
   SMTP_PORT: 465
@@ -23,25 +23,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Docker Buildx
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: pip install pydrive2
+
+      - name: Prepare upload directory
+        run: |
+          mkdir -p ${{ env.UPLOAD_DIR }}
+          sudo chown 10001:10001 ${{ env.UPLOAD_DIR }}
+
+
+      - name: Download trades.pdf from Google Drive
+        env:
+          GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
+        run: python scripts/get_trades_pdf.py
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build Docker image
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
           tags: ${{ env.DOCKER_IMAGE }}
-          load: true   # <- this is crucial
+          load: true
 
-      # Validate required secrets safely
-      - name: Validate environment secrets
+      - name: Validate secrets
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
@@ -55,27 +70,21 @@ jobs:
             fi
           done
 
-      # Create upload directory
-      - name: Prepare upload directory
-        run: mkdir -p ${{ env.UPLOAD_DIR }}
-
-      # Run Docker container safely (non-root, read-only)
       - name: Run Docker container to generate report
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}/${{ env.UPLOAD_DIR }}:/app/${{ env.UPLOAD_DIR }} \
-            --user $(id -u):$(id -g) \
-            --read-only \
+            -v ${{ github.workspace }}/uploads:${{ env.UPLOAD_DIR_PATH }}:rw \
+            -e UPLOAD_DIR=${{ env.UPLOAD_DIR_PATH }} \
             ${{ env.DOCKER_IMAGE }}
 
-      # Upload the generated report as artifact
+
+
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
           name: kraken-trades
-          path: ${{ env.UPLOAD_DIR }}/${{ env.REPORT_FILE }}
+          path: ${{ env.UPLOAD_DIR_PATH }}/${{ env.REPORT_FILE }}
 
-      # Send report by email
       - name: Send report by email
         if: success()
         uses: dawidd6/action-send-mail@v3
