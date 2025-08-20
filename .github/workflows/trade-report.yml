@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -39,12 +39,16 @@ jobs:
           push: false
           tags: ${{ env.DOCKER_IMAGE }}
 
-      # Validate required secrets
+      # Validate required secrets safely
       - name: Validate environment secrets
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          REPORT_RECIPIENT: ${{ secrets.REPORT_RECIPIENT }}
         run: |
           set -e
-          for var in EMAIL_USER REPORT_RECIPIENT EMAIL_PASS; do
-            if [ -z "${{ secrets.$var }}" ]; then
+          for var in EMAIL_USER EMAIL_PASS REPORT_RECIPIENT; do
+            if [ -z "${!var}" ]; then
               echo "ERROR: Secret $var is not defined!"
               exit 1
             fi
@@ -54,7 +58,7 @@ jobs:
       - name: Prepare upload directory
         run: mkdir -p ${{ env.UPLOAD_DIR }}
 
-      # Run Docker container safely
+      # Run Docker container safely (non-root, read-only)
       - name: Run Docker container to generate report
         run: |
           docker run --rm \
