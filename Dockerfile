@@ -29,8 +29,7 @@ FROM python:3.11-slim AS runtime
 
 ENV APP_HOME=/app \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UPLOADS_DIR=/app/uploads
+    PYTHONUNBUFFERED=1
 
 # Runtime user setup
 ARG APP_USER=appuser
@@ -52,8 +51,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy app code with proper ownership
 COPY --chown=${APP_UID}:${APP_GID} . ${APP_HOME}
 
-# Create a writable folder for outputs
-RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR}
+# # Create a writable folder for outputs
+# RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR}
 
 USER ${APP_UID}:${APP_GID}
 
