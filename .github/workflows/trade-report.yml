@@ -11,7 +11,7 @@ on:
 env:
   UPLOAD_DIR: uploads
   UPLOAD_DIR_PATH: /app/uploads
-  REPORT_FILE: kraken_parsed_trades.xlsx
+  REPORT_FILE: kraken_trade_summary.xlsx
   DOCKER_IMAGE: krakentrades:latest
   SMTP_SERVER: smtp.gmail.com
   SMTP_PORT: 465
