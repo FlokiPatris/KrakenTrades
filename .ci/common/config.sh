@@ -21,7 +21,7 @@
 # -------------------------------
 # Tool versions (defaults)
 # -------------------------------
-: "${PYTHON_VERSION:=3.11}"       # Python version to use
+: "${PYTHON_VERSION:=3.11}"      # Python version to use
 : "${BANDIT_VERSION:=1.8.6}"     # Bandit version
 : "${PIP_AUDIT_VERSION:=2.9.0}"  # pip-audit version
 : "${SHELLCHECK_VERSION:=0.9.0}" # ShellCheck advisory/default version
@@ -30,8 +30,8 @@
 # -------------------------------
 # Gitleaks Docker defaults
 # -------------------------------
-: "${GITLEAKS_IMAGE:=zricethezav/gitleaks}"      # Gitleaks image name
-: "${GITLEAKS_IMAGE_TAG:=8.18.2}"               # Gitleaks image tag
+: "${GITLEAKS_IMAGE:=zricethezav/gitleaks}" # Gitleaks image name
+: "${GITLEAKS_IMAGE_TAG:=8.18.2}"           # Gitleaks image tag
 
 # -------------------------------
 # Installer toggles

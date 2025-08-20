@@ -7,31 +7,50 @@
 
 name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 
+# ------------------------
+# Workflow triggers
+# ------------------------
 on:
   push:
+    branches: ["**"]
+    paths:
+      - "**.sh"          # Any shell script changes
+      - ".ci/bin/**"     # CI helper scripts
+      - "Makefile"       # Makefile changes
+  pull_request:
     branches: ["**"]
     paths:
       - "**.sh"
       - ".ci/bin/**"
       - "Makefile"
-  workflow_dispatch:
+  workflow_dispatch:     # Manual trigger option
 
+# ------------------------
+# Permissions
+# ------------------------
 permissions:
-  contents: read
-  security-events: write
+  contents: read           # Only read repo contents
+  security-events: write   # Needed for SARIF uploads & security events
 
+# ------------------------
+# Concurrency
+# ------------------------
 concurrency:
-  group: appsec-scan-${{ github.ref }}
-  cancel-in-progress: true
+  group: appsec-scan-${{ github.ref }}  # One run per branch
+  cancel-in-progress: true              # Cancel old runs if new one triggers
 
+# ------------------------
+# Environment variables
+# ------------------------
 env:
-  # Runtime/tooling
-  PYTHON_VERSION: "3.11"
-  SARIF_DIR: "sarif-reports"
-  
-  # Upload SARIF only for push and for PRs from same repository (avoid leak from forks)
+  PYTHON_VERSION: "3.11"        # Python runtime
+  SARIF_DIR: "sarif-reports"    # Output folder for SARIF
+  # Only upload SARIF on push or same-repo PRs (forks are excluded)
   UPLOAD_SARIF: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
+# ------------------------
+# Jobs
+# ------------------------
 jobs:
   security:
     name: Run Makefile AppSec suite
@@ -61,11 +80,9 @@ jobs:
             make ca-certificates git curl jq
           sudo rm -rf /var/lib/apt/lists/*
 
-      # Core step: delegate all scanning to the Makefile to avoid YAML drift.
       - name: 🔐 Run AppSec suite via Makefile
-        run: make appsec
+        run: make appsec  # Delegates scanning to Makefile (DRY)
 
-      # Harden SARIF files before uploading or artifacting
       - name: 🧹 Harden SARIF artifacts (permissions)
         if: always()
         env:
@@ -74,13 +91,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -d "${SARIF_DIR}" ]]; then
-            # Restrictive perms (no world-readable)
+            # Restrict file permissions to owner only
             find "${SARIF_DIR}" -type f -name "*.sarif" -exec chmod 600 {} \; || true
             find "${SARIF_DIR}" -type d -exec chmod 700 {} \; || true
           fi
           echo "Audit: SARIF permissions set, uploads gated by UPLOAD_SARIF=${UPLOAD_SARIF}."
 
-      # Bundle SARIF as a short-lived artifact to decouple upload (enables DRY matrix in a separate job)
       - name: 📦 Upload SARIF bundle (for post-processing)
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,8 +108,9 @@ jobs:
 
   sarif-upload:
     name: Upload SARIF to Security tab
-    needs: [security]
+    needs: [security]  # Wait for security job
     runs-on: ubuntu-latest
+    # Only run for push or same-repo PR
     if: ${{ needs.security.result != 'cancelled' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     strategy:
       fail-fast: false
@@ -119,8 +136,8 @@ jobs:
           name: sarif-bundle
           path: ${{ env.SARIF_DIR }}
 
-      # Upload only if the specific SARIF exists (avoids errors if a tool skipped or produced nothing)
       - name: ⬆️ Upload ${{ matrix.category }} SARIF
+        # Only upload if the SARIF file exists (avoids errors)
         if: ${{ always() && hashFiles(format('{0}/{1}', env.SARIF_DIR, matrix.file)) != '' }}
         uses: github/codeql-action/upload-sarif@v3
         with:

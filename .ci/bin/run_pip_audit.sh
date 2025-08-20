@@ -12,7 +12,7 @@ source ".ci/common/installations.sh"  # Installation helpers
 # -------------------------------
 root="$(repo_root)"  # Repository root directory
 sarif_dir="$(ensure_sarif_dir "${SARIF_OUT_DIR}")"  # Ensure SARIF output directory exists
-json_out="${sarif_dir}/pip-audit.json"  # JSON output path
+json_out="${sarif_dir}/pip-audit.json"    # JSON output path
 sarif_out="${sarif_dir}/pip-audit.sarif"  # SARIF output path
 
 # -------------------------------
