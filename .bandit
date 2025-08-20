@@ -1,0 +1,29 @@
+# .bandit.yml
+
+# ------------------------------------------------------
+# Folders and files to scan
+# ------------------------------------------------------
+targets:
+  - src/           # Only scan your production code
+exclude_dirs:
+  - tests/         # Ignore test files
+  - venv/          # Ignore virtual environments
+  - .venv/
+  - dist/
+  - build/
+  - .git/
+  - __pycache__/
+
+# ------------------------------------------------------
+# Warnings to skip
+# ------------------------------------------------------
+skips:
+  - B101           # Ignore assert_used warnings globally (optional)
+  - B404           # Ignore use of pickle (if ever in production)
+  - B603           # Ignore subprocess security issues if handled
+
+# ------------------------------------------------------
+# Output settings
+# ------------------------------------------------------
+output_format: txt
+quiet: false
