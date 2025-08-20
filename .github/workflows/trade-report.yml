@@ -10,6 +10,7 @@ on:
 
 env:
   UPLOAD_DIR: uploads
+  UPLOAD_DIR_PATH: /app/uploads
   REPORT_FILE: kraken_parsed_trades.xlsx
   DOCKER_IMAGE: krakentrades:latest
   SMTP_SERVER: smtp.gmail.com
@@ -72,8 +73,8 @@ jobs:
       - name: Run Docker container to generate report
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}/uploads:/app/uploads:rw \
-            -e UPLOAD_DIR=/app/uploads \
+            -v ${{ github.workspace }}/uploads:${{ env.UPLOAD_DIR_PATH }}:rw \
+            -e UPLOAD_DIR=${{ env.UPLOAD_DIR_PATH }} \
             ${{ env.DOCKER_IMAGE }}
 
 
@@ -82,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kraken-trades
-          path: ${{ env.UPLOAD_DIR }}/${{ env.REPORT_FILE }}
+          path: ${{ env.UPLOAD_DIR_PATH }}/${{ env.REPORT_FILE }}
 
       - name: Send report by email
         if: success()
