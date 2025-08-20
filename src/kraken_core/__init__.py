@@ -12,7 +12,7 @@ from .constants import ExcelStyling, FileLocations, FormatRules, KrakenAPI, Trad
 from .custom_logger import custom_logger
 
 # === Data Classes for Trading ===
-from .data_classes import (
+from .models import (
     MainSummaryMetrics,
     MarketSnapshot,
     TradeBreakdownSnapshot,
