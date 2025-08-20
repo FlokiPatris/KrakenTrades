@@ -44,8 +44,7 @@ ARG APP_UID=10001
 ARG APP_GID=10001
 
 # Install runtime OS dependencies
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g "${APP_GID}" "${APP_USER}" \
