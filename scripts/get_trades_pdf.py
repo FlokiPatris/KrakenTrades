@@ -1,7 +1,7 @@
 import os
 import json
 from pydrive2.auth import GoogleAuth
-from pydrpyive2.drive import GoogleDrive
+from pydrive2.drive import GoogleDrive
 
 creds_json = json.loads(os.environ["GOOGLE_DRIVE_JSON_KEY"])
 gauth = GoogleAuth()
