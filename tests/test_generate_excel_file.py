@@ -3,7 +3,7 @@ import shutil
 
 from main import main
 from kraken_core import FileLocations
-from helpers.file_helper import get_output_dir
+from src.helpers.file_helper import get_output_dir
 from tests.assertions import assert_script_generates_excel
 
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from openpyxl import load_workbook
 
-from src.kraken_core.custom_logger import custom_logger
+from kraken_core.custom_logger import custom_logger
 
 
 def assert_file_exists(file_path: Path) -> None:
