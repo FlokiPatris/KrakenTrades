@@ -4,7 +4,7 @@ from typing import List
 import pandas as pd
 import pdfplumber
 
-from src.kraken_core import (
+from kraken_core import (
     FormatRules,
     RawColumn,
     TradeColumn,

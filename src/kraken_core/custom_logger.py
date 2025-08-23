@@ -5,9 +5,11 @@ import sys
 def _create_custom_logger(name: str = "trades") -> logging.Logger:
     """
     Internal function to configure the logger once.
+    Prevents duplicate logs by disabling propagation.
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    logger.propagate = False  # Stop bubbling to root logger
 
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
@@ -21,5 +23,5 @@ def _create_custom_logger(name: str = "trades") -> logging.Logger:
     return logger
 
 
-# ✅ Global logger instance — import and use directly
+# ✅ Global logger instance
 custom_logger: logging.Logger = _create_custom_logger()

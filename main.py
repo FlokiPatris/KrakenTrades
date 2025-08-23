@@ -12,15 +12,15 @@ Main pipeline for processing Kraken trade PDFs into styled Excel reports.
 from pathlib import Path
 import sys
 
-from src.helpers.file_helper import get_output_dir
-from src.file_management import (
+from helpers.file_helper import get_output_dir
+from file_management import (
     build_trade_dataframe,
     extract_kraken_trade_records_from_pdf,
     style_excel,
     write_excel,
 )
-from src.kraken_core.constants import FileLocations
-from src.kraken_core import custom_logger
+from kraken_core import FileLocations
+from kraken_core import custom_logger
 
 
 def main() -> None:

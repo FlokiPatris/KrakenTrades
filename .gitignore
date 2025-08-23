@@ -58,4 +58,4 @@ junit.xml
 # Optional test artifacts
 test-results/
 trades.*
-kraken_parsed_trades.xlsx
+kraken_trade*.xlsx

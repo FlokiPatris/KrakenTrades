@@ -2,8 +2,8 @@ import pytest
 import shutil
 
 from main import main
-from src.kraken_core.constants import FileLocations
-from src.helpers.file_helper import get_output_dir
+from kraken_core import FileLocations
+from helpers.file_helper import get_output_dir
 from tests.assertions import assert_script_generates_excel
 
 

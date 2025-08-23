@@ -8,6 +8,56 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# === Repository Scanning Configuration ===
+@dataclass(frozen=True)
+class RepoScanConfig:
+    """
+    Configuration for scanning repository files.
+    """
+
+    SEPARATOR: str = "=" * 80
+
+    # Root path of the repository (defaults to current working directory)
+    REPO_ROOT: Path = Path(os.getenv("REPO_ROOT", ".")).resolve()
+
+    # File extensions to include in scan
+    INCLUDED_EXTENSIONS: frozenset = frozenset(
+        os.getenv(
+            "SCAN_EXTENSIONS", ".py,.txt,.yml,.json,.md,Dockerfile,Makefile"
+        ).split(",")
+    )
+
+    # Directories to skip during scanning
+    SKIP_DIRS: frozenset = frozenset(
+        [
+            ".git",
+            ".hg",
+            ".svn",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "env",
+            "build",
+            "dist",
+            ".idea",
+            ".vscode",
+            "tmp",
+            "temp",
+        ]
+    )
+
+    # Output file for extracted content
+    OUTPUT_FILE: Path = Path(
+        os.getenv("OUTPUT_FILE", "../reports/repository_extracted_contents.txt")
+    )
+
+    # Tree depth for printing repo structure
+    TREE_DEPTH: int = int(os.getenv("TREE_DEPTH", 10))
+
+    # Top-level folder categories for organizing scanned files
+    TOP_LEVEL_CATEGORIES = [".ci", ".github", "scripts", "src", "tests"]
+
+
 # === File Locations ===
 @dataclass(frozen=True)
 class FileLocations:
@@ -17,9 +67,11 @@ class FileLocations:
     """
 
     # Input / Output file names
-    KRAKEN_TRADES_PDF: Path = Path(os.getenv("KRAKEN_TRADES_PDF", "trades.pdf"))
+    KRAKEN_TRADES_PDF: Path = Path(
+        os.getenv("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
+    )
     PARSED_TRADES_EXCEL: Path = Path(
-        os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx")
+        os.getenv("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
     )
 
     # Uploads directory for Docker runtime

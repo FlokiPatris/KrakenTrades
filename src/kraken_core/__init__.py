@@ -6,7 +6,14 @@ Exposes core classes, constants, and utilities for Kraken trading data and confi
 # === Excel Styling Constants ===
 # === Regex & Format Rules ===
 # === File & API Configuration ===
-from .constants import ExcelStyling, FileLocations, FormatRules, KrakenAPI, TradeRegex
+from .constants import (
+    ExcelStyling,
+    FileLocations,
+    FormatRules,
+    KrakenAPI,
+    TradeRegex,
+    RepoScanConfig,
+)
 
 # === Logger ===
 from .custom_logger import custom_logger
@@ -30,6 +37,7 @@ __all__ = [
     "FormatRules",
     "custom_logger",
     "TradeRecord",
+    "RepoScanConfig",
     "MainSummaryMetrics",
     "MarketSnapshot",
     "TradeBreakdownSnapshot",
