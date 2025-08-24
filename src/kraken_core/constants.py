@@ -58,7 +58,7 @@ class PathsConfig:
     - Files: fixed paths, can be overridden via environment variables
     """
 
-    # --- Files ---
+    # --- Files --- #
     KRAKEN_TRADES_PDF: Path = Path(
         os.getenv("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
     )
@@ -66,7 +66,7 @@ class PathsConfig:
         os.getenv("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
     )
 
-    # --- Folders # --
+    # --- Folders --- #
     DOWNLOADS_DIR: Path = Path(
         os.getenv("DOWNLOADS_DIR", f"{FolderType.DOWNLOADS.value}")
     )

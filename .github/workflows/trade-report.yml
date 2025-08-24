@@ -46,10 +46,10 @@ jobs:
           python-version: 3.11
 
       # ------------------------------------------------------
-      # Install dependencies (pydrive2 for Google Drive access)
+      # Install Python dependencies using Makefile
       # ------------------------------------------------------
-      - name: Install dependencies
-        run: pip install pydrive2
+      - name: 📦 Install Python dependencies
+        run: make install-deps
 
       # ------------------------------------------------------
       # Prepare uploads folder (writable, correct owner)

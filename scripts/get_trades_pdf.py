@@ -7,7 +7,9 @@ from pathlib import Path
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
+
 from kraken_core import PathsConfig, custom_logger
+from helpers import file_helper
 
 
 # =======================================================
@@ -72,6 +74,8 @@ def download_file(drive: GoogleDrive, file_id: str, output_path: Path) -> None:
 # 🏁 Main Execution
 # =======================================================
 def main() -> None:
+    # Ensure downloads directory exists
+    file_helper.ensure_dir(PathsConfig.DOWNLOADS_DIR)
     # Load credentials
     creds_json = load_service_account_creds("GOOGLE_DRIVE_JSON_KEY")
 
