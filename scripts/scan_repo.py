@@ -34,6 +34,14 @@ def get_category(file_path: Path, repo_root: Path, config: RepoScanConfig) -> st
         Top-level folder name if recognized, else fallback category.
     """
     try:
+        # Get the relative path of the file with respect to the repository root.
+        # Example:
+        #   repo_root = "/trades"
+        #   file_path = "/trades/src/module/file.py"
+        #   -> relative_parts = ("src", "module", "file.py")
+        #
+        # Using .parts breaks the relative path into its directory components,
+        # so we can easily access the top-level folder ("src" in this case).
         relative_parts = file_path.relative_to(repo_root).parts
         if relative_parts:
             top_folder = relative_parts[0]
@@ -89,7 +97,7 @@ def log_repo_structure(config: RepoScanConfig) -> None:
 # 🔹 File Scanning & Categorization
 # --------------------------------------------------------------------
 def scan_file(
-    file_path: Path, config: RepoScanConfig, repo_root: Path, output_dir: Path
+    file_path: Path, config: RepoScanConfig, repo_root: Path, reports_dir: Path
 ) -> None:
     """
     Reads a file safely and appends it to the category output file.
@@ -105,7 +113,7 @@ def scan_file(
         return
 
     category = get_category(file_path, repo_root, config)
-    category_file = output_dir / f"{category}.txt"
+    category_file = reports_dir / f"{category}.txt"
 
     custom_logger.info("📄 %s -> %s", file_path, category_file)
     try:

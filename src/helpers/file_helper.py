@@ -144,9 +144,9 @@ class FileHelper:
     def _get_folder_path(self, folder: FolderType) -> Path:
         """Map FolderType enum to actual folder path."""
         mapping = {
-            FolderType.REPORTS: self.reports_dir,
             FolderType.DOWNLOADS: self.downloads_dir,
             FolderType.UPLOADS: self.uploads_dir,
+            FolderType.REPORTS: self.reports_dir,
         }
         try:
             return mapping[folder]
