@@ -1,25 +1,20 @@
 import pytest
-import shutil
 
+from kraken_core import FolderType, PathsConfig
 from main import main
-from src.kraken_core.constants import FileLocations
-from src.helpers.file_helper import get_output_dir
+from helpers import file_helper
 from tests.assertions import assert_script_generates_excel
 
 
 @pytest.fixture(autouse=True)
-def clean_output_dir():
+def clean_uploads_dir():
     """
     Ensure output dir is clean before/after each test.
     """
-    output_dir = get_output_dir()
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+
+    file_helper.reset_dir(FolderType.UPLOADS)
 
     yield
-
-    shutil.rmtree(output_dir)
 
 
 def test_script_generates_excel():
@@ -31,6 +26,4 @@ def test_script_generates_excel():
     main()
 
     # Use centralized assertion helpers
-    assert_script_generates_excel(
-        get_output_dir(), FileLocations.PARSED_TRADES_EXCEL.name
-    )
+    assert_script_generates_excel(PathsConfig.PARSED_TRADES_EXCEL.name)

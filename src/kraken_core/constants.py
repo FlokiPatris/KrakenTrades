@@ -2,28 +2,79 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load .env if present
-load_dotenv()
+from .enums import FolderType
 
 
-# === File Locations ===
+# === Repository Scanning Configuration ===
 @dataclass(frozen=True)
-class FileLocations:
+class RepoScanConfig:
     """
-    Centralized file path configuration.
-    Reads from environment variables or falls back to defaults.
+    Configuration for scanning repository files.
     """
 
-    # Input / Output file names
-    KRAKEN_TRADES_PDF: Path = Path(os.getenv("KRAKEN_TRADES_PDF", "trades.pdf"))
-    PARSED_TRADES_EXCEL: Path = Path(
-        os.getenv("PARSED_TRADES_EXCEL", "kraken_trade_summary.xlsx")
+    SEPARATOR: str = "=" * 80
+
+    # File extensions to include in scan
+    INCLUDED_EXTENSIONS: frozenset = frozenset(
+        os.getenv(
+            "SCAN_EXTENSIONS", ".py,.txt,.yml,.json,.md,Dockerfile,Makefile"
+        ).split(",")
     )
 
-    # Uploads directory for Docker runtime
-    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", "uploads"))
+    # Directories to skip during scanning
+    SKIP_DIRS: frozenset = frozenset(
+        [
+            ".git",
+            ".hg",
+            ".svn",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "env",
+            "build",
+            "dist",
+            ".idea",
+            ".vscode",
+            "tmp",
+            "temp",
+        ]
+    )
+
+    # Tree depth for printing repo structure
+    TREE_DEPTH: int = int(os.getenv("TREE_DEPTH", 10))
+
+    FALLBACK_CATEGORY: str = "other"
+    CATEGORIES_TO_SCAN: frozenset = frozenset(
+        [".ci", ".github", "scripts", "src", "tests"]
+    )
+
+
+@dataclass(frozen=True)
+class PathsConfig:
+    """
+    Centralized configuration for folders and files.
+    - Folders: controlled via FolderType enum
+    - Files: fixed paths, can be overridden via environment variables
+    """
+
+    # --- Files --- #
+    KRAKEN_TRADES_PDF: Path = Path(
+        os.getenv("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
+    )
+    PARSED_TRADES_EXCEL: Path = Path(
+        os.getenv("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
+    )
+
+    # --- Folders --- #
+    DOWNLOADS_DIR: Path = Path(
+        os.getenv("DOWNLOADS_DIR", f"{FolderType.DOWNLOADS.value}")
+    )
+    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", f"{FolderType.UPLOADS.value}"))
+    REPORTS_DIR: Path = Path(os.getenv("REPORTS_DIR", f"../{FolderType.REPORTS.value}"))
+
+    # --- Repo root ---
+    REPO_ROOT: Path = Path(os.getenv("REPO_ROOT", ".")).resolve()
 
 
 # === API Configuration ===

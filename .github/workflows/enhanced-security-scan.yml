@@ -1,4 +1,3 @@
-# .github/workflows/scan.yml
 # 🔐 AppSec — Security, Secrets & Shell Script Scan (DRY, Makefile-driven)
 # - Single source of truth: defers to Makefile targets for all scans
 # - CI-only responsibilities: SARIF upload, gating, artifact hardening

@@ -1,25 +1,48 @@
+# kraken_core/logger_manager.py
 import logging
 import sys
+from typing import Optional
 
 
-def _create_custom_logger(name: str = "trades") -> logging.Logger:
+class LoggerManager:
     """
-    Internal function to configure the logger once.
+    Singleton logger manager for kraken trades.
+    Centralizes logging configuration and allows easy AWS CloudWatch integration later.
     """
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
 
-    if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+    _instance: Optional["LoggerManager"] = None
+    logger: logging.Logger
 
-    return logger
+    def __new__(cls, name: str = "trades") -> "LoggerManager":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._configure_logger(name)
+        return cls._instance
+
+    def _configure_logger(self, name: str) -> None:
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False  # Prevent double logging
+
+        if not self.logger.handlers:
+            # Stdout handler
+            handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter(
+                fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+
+            # Placeholder: add AWS CloudWatch handler here in the future
+            # self._add_cloudwatch_handler()
+
+    # Example for future AWS CloudWatch integration
+    # def _add_cloudwatch_handler(self):
+    #     import watchtower
+    #     cw_handler = watchtower.CloudWatchLogHandler(log_group="kraken-trades")
+    #     self.logger.addHandler(cw_handler)
 
 
-# ✅ Global logger instance — import and use directly
-custom_logger: logging.Logger = _create_custom_logger()
+# ✅ Global singleton logger
+custom_logger = LoggerManager().logger

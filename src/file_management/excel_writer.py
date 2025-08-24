@@ -2,14 +2,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.kraken_core import (
+from kraken_core import (
     FormatRules,
     MainSummaryMetrics,
     TradeBreakdownSnapshot,
     TradeColumn,
     custom_logger,
 )
-from src.market import (
+from market import (
     fetch_market_price,
     manual_litecoin_injection,
     manual_onyx_injection,

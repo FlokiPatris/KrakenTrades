@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.kraken_core import TradeColumn
+from kraken_core import TradeColumn
 
 
 # === MANUAL INJECTIONS ===

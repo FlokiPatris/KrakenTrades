@@ -1,6 +1,12 @@
 from enum import Enum
 
 
+class FolderType(str, Enum):
+    REPORTS = "reports"
+    DOWNLOADS = "downloads"
+    UPLOADS = "uploads"
+
+
 class TradeColumn(str, Enum):
     UNIQUE_ID = "Unique ID"
     DATE = "Date"

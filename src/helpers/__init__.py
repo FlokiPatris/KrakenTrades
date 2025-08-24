@@ -1,7 +1,3 @@
-from .file_helper import get_output_dir, get_report_path, get_input_pdf_path
+from .file_helper import file_helper
 
-__all__ = [
-    "get_output_dir",
-    "get_report_path",
-    "get_input_pdf_path",
-]
+__all__ = ["file_helper"]

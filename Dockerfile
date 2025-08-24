@@ -10,17 +10,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_HOME=/app
 
+# Install build dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-        build-essential gcc curl git \
+        build-essential gcc curl git make \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR ${APP_HOME}
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+# Copy code first (to allow Makefile caching)
 COPY . .
+
+# Install Python dependencies via Makefile target
+RUN make install-deps
 
 ############################
 # 2) Runtime stage
@@ -45,14 +47,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR ${APP_HOME}
 
-# Copy dependencies from builder
+# Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy app code with proper ownership
+# Copy app code with correct ownership
 COPY --chown=${APP_UID}:${APP_GID} . ${APP_HOME}
 
-# Create a writable folder for outputs
+# Create uploads folder with proper permissions
 RUN mkdir -p ${UPLOADS_DIR} && chown -R ${APP_UID}:${APP_GID} ${UPLOADS_DIR}
 
 USER ${APP_UID}:${APP_GID}
