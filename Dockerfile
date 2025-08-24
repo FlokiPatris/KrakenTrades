@@ -13,18 +13,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install build dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-        build-essential gcc curl git \
+        build-essential gcc curl git make \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR ${APP_HOME}
 
-# Install Python dependencies first for caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the code and install editable package
+# Copy code first (to allow Makefile caching)
 COPY . .
-RUN pip install --no-cache-dir -e .
+
+# Install Python dependencies via Makefile target
+RUN make install-deps
 
 ############################
 # 2) Runtime stage

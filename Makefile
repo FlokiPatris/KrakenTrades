@@ -77,6 +77,7 @@ ensure-dirs:
 install-deps:
 	@echo "→ Installing core dependencies"
 	@$(PIP) install -q -r requirements.txt
+	@$(PIP) install -e .
 
 # ==========================================================
 # Local full pipeline (developer convenience)

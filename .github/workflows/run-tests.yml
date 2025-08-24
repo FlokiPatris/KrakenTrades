@@ -1,3 +1,9 @@
+# 🧪 Python Tests & Coverage (DRY, Makefile-driven)
+# - Single source of truth: Makefile handles test execution & coverage
+# - CI responsibilities only: artifacts, environment prep, report upload
+# - No magic constants: Python version, paths, and cache centralized in env
+# - Public repo safe: no secrets echoed, minimal permissions
+
 name: "🧪 Python Tests & Coverage"
 
 on:
@@ -8,12 +14,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read  # ❌ Write not needed for tests
 
 env:
-  PYTHON_VERSION: "3.11"
-  PIP_CACHE_DIR: ~/.cache/pip
-  UPLOADS_DIR: uploads
+  PYTHON_VERSION: "3.11"  # Central Python version for CI
+  PIP_CACHE_DIR: ~/.cache/pip  # Reuse pip cache across runs
+  UPLOADS_DIR: uploads  # Writable folder for test artifacts
 
 jobs:
   test:
@@ -26,13 +32,13 @@ jobs:
 
     steps:
       # ------------------------------------------------------
-      # Checkout repository
+      # Checkout repository (CI-only responsibility)
       # ------------------------------------------------------
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
       # ------------------------------------------------------
-      # Setup Python with pip caching
+      # Setup Python and pip caching
       # ------------------------------------------------------
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
@@ -47,13 +53,13 @@ jobs:
         run: make install-deps
 
       # ------------------------------------------------------
-      # Prepare uploads folder (writable in CI)
+      # Prepare uploads folder for CI artifacts
       # ------------------------------------------------------
       - name: 📂 Prepare uploads directory
         run: mkdir -p ${{ github.workspace }}/uploads
 
       # ------------------------------------------------------
-      # Download trades.pdf from Google Drive
+      # Download trades.pdf (secrets safe)
       # ------------------------------------------------------
       - name: 📄 Download trades.pdf
         env:
@@ -61,8 +67,7 @@ jobs:
         run: python scripts/get_trades_pdf.py
 
       # ------------------------------------------------------
-      # Run tests with coverage using Makefile
-      # (Makefile handles cleanup)
+      # Run tests with coverage (Makefile handles cleanup)
       # ------------------------------------------------------
       - name: 🧪 Run tests + coverage
         run: make test

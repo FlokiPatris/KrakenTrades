@@ -1,16 +1,24 @@
-name: Trades Report
+# 📊 Trades Report (Daily & On-Demand)
+# - Single source of truth: Docker container generates report
+# - CI & schedule: runs on pull requests or daily cron
+# - Secrets-safe: credentials never echoed
+# - DRY: centralized env vars for paths, files, and SMTP
+
+name: "📊 Trades Report"
 
 permissions:
-  contents: read
+  contents: read  # No write needed
 
 on:
+  pull_request:
+    branches: ["**"]
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *"  # daily at 06:00 UTC
+    - cron: "0 6 * * *"  # Daily at 06:00 UTC
 
 env:
-  UPLOAD_DIR: uploads
-  UPLOAD_DIR_PATH: /app/uploads
+  UPLOAD_DIR: uploads  # CI-relative uploads folder
+  UPLOAD_DIR_PATH: /app/uploads  # Path inside Docker container
   REPORT_FILE: kraken_trade_summary.xlsx
   DOCKER_IMAGE: krakentrades:latest
   SMTP_SERVER: smtp.gmail.com
@@ -23,30 +31,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ------------------------------------------------------
+      # Checkout repository (CI-only responsibility)
+      # ------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ------------------------------------------------------
+      # Setup Python for scripts (pydrive2)
+      # ------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
 
+      # ------------------------------------------------------
+      # Install dependencies (pydrive2 for Google Drive access)
+      # ------------------------------------------------------
       - name: Install dependencies
         run: pip install pydrive2
 
+      # ------------------------------------------------------
+      # Prepare uploads folder (writable, correct owner)
+      # ------------------------------------------------------
       - name: Prepare upload directory
         run: |
           mkdir -p ${{ env.UPLOAD_DIR }}
           sudo chown 10001:10001 ${{ env.UPLOAD_DIR }}
 
+      # ------------------------------------------------------
+      # Download trades.pdf from Google Drive (secure)
+      # ------------------------------------------------------
       - name: Download trades.pdf from Google Drive
         env:
           GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
         run: python scripts/get_trades_pdf.py
 
+      # ------------------------------------------------------
+      # Setup Docker Buildx (multi-platform builds if needed)
+      # ------------------------------------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ------------------------------------------------------
+      # Build Docker image for report generation
+      # ------------------------------------------------------
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -55,6 +84,9 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}
           load: true
 
+      # ------------------------------------------------------
+      # Validate secrets (fail fast if missing)
+      # ------------------------------------------------------
       - name: Validate secrets
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -69,6 +101,9 @@ jobs:
             fi
           done
 
+      # ------------------------------------------------------
+      # Run Docker container to generate report
+      # ------------------------------------------------------
       - name: Run Docker container to generate report
         run: |
           docker run --rm \
@@ -76,12 +111,18 @@ jobs:
             -e UPLOAD_DIR=${{ env.UPLOAD_DIR_PATH }} \
             ${{ env.DOCKER_IMAGE }}
 
+      # ------------------------------------------------------
+      # Upload generated report as artifact (CI retention)
+      # ------------------------------------------------------
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
           name: kraken-trades
           path: ${{ env.UPLOAD_DIR_PATH }}/${{ env.REPORT_FILE }}
 
+      # ------------------------------------------------------
+      # Send report by email (if successful)
+      # ------------------------------------------------------
       - name: Send report by email
         if: success()
         uses: dawidd6/action-send-mail@v3
@@ -93,5 +134,6 @@ jobs:
           subject: ${{ env.EMAIL_SUBJECT }}
           to: ${{ secrets.REPORT_RECIPIENT }}
           from: "Kraken Bot <${{ secrets.EMAIL_USER }}>"
+
           body: ${{ env.EMAIL_BODY }}
           attachments: ${{ env.UPLOAD_DIR }}/${{ env.REPORT_FILE }}

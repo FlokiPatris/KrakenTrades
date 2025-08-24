@@ -8,7 +8,7 @@ Exposes core classes, constants, and utilities for Kraken trading data and confi
 # === File & API Configuration ===
 from .constants import (
     ExcelStyling,
-    FileLocations,
+    PathsConfig,
     FormatRules,
     KrakenAPI,
     TradeRegex,
@@ -27,10 +27,10 @@ from .models import (
 )
 
 # === Trade Column Enums ===
-from .enums import RawColumn, TradeColumn
+from .enums import RawColumn, TradeColumn, FolderType
 
 __all__ = [
-    "FileLocations",
+    "PathsConfig",
     "KrakenAPI",
     "TradeRegex",
     "ExcelStyling",
@@ -43,4 +43,5 @@ __all__ = [
     "TradeBreakdownSnapshot",
     "TradeColumn",
     "RawColumn",
+    "FolderType",
 ]

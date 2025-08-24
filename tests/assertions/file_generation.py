@@ -1,7 +1,8 @@
 from pathlib import Path
 from openpyxl import load_workbook
 
-from kraken_core.custom_logger import custom_logger
+from kraken_core import custom_logger
+from helpers import file_helper
 
 
 def assert_file_exists(file_path: Path) -> None:
@@ -22,8 +23,9 @@ def assert_valid_excel(file_path: Path) -> None:
             wb.close()
 
 
-def assert_script_generates_excel(output_dir: Path, excel_file_name: str) -> None:
+def assert_script_generates_excel(excel_file_name: str) -> None:
     """Combined helper: assert the Excel report exists and is valid."""
-    excel_path = output_dir / excel_file_name
+    excel_path = file_helper.uploads_dir / excel_file_name
+
     assert_file_exists(excel_path)
     assert_valid_excel(excel_path)
