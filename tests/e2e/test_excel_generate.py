@@ -43,7 +43,9 @@ def reports_dir() -> Generator[Path, None, None]:
 
     # Pre-test cleanup
     file_helper.reset_dir(FolderType.REPORTS)
+
     yield PathsConfig.REPORTS_DIR
+
     # Post-test cleanup (safe-guard)
     file_helper.reset_dir(FolderType.REPORTS)
 

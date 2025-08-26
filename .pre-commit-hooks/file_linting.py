@@ -35,7 +35,7 @@ def lint_and_fix_yield_spacing(file_path: Path) -> List[str]:
     i = 0
     while i < len(lines):
         line = lines[i]
-        if "yield" in line:
+        if "yield " in line and file_path.name != "file_linting.py":
             # Check blank line before
             if i == 0 or lines[i - 1].strip() != "":
                 violations.append(
