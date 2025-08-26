@@ -70,6 +70,12 @@ jobs:
       # Run tests with coverage (Makefile handles cleanup)
       # ------------------------------------------------------
       - name: 🧪 Run tests + coverage
+        env:
+          RDS_HOST: ${{ secrets.RDS_HOST }}
+          RDS_DB_NAME: ${{ secrets.RDS_DB_NAME }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_PORT: ${{ secrets.RDS_PORT }}
         run: make test
 
       # ------------------------------------------------------
