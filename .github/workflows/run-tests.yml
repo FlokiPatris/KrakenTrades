@@ -25,6 +25,8 @@ jobs:
       RDS_DB_NAME: ${{ secrets.DB_NAME }}
       RDS_USER: ${{ secrets.DB_USER }}
       RDS_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      RDS_PORT: ${{ secrets.DB_PORT }}
+      GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
     defaults:
       run:
         shell: bash
