@@ -52,7 +52,7 @@ jobs:
       - name: Validate DB secrets
         run: |
           set -e
-          for var in RDS_HOST RDS_DB_NAME RDS_USER RDS_PASSWORD RDS_PORT; do
+          for var in RDS_HOST RDS_DB_NAME RDS_USER RDS_PASSWORD; do
             if [ -z "${!var}" ]; then
               echo "ERROR: Secret $var is not defined!"
               exit 1
