@@ -20,7 +20,13 @@ env:
   PYTHON_VERSION: "3.11"  # Central Python version for CI
   PIP_CACHE_DIR: ~/.cache/pip  # Reuse pip cache across runs
   UPLOADS_DIR: uploads  # Writable folder for test artifacts
-
+  RDS_HOST: ${{ secrets.RDS_HOST }}
+  RDS_DB_NAME: ${{ secrets.RDS_DB_NAME }}
+  RDS_USER: ${{ secrets.RDS_USER }}
+  RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+  RDS_PORT: ${{ secrets.RDS_PORT }}
+  GOOGLE_DRIVE_JSON_KEY: ${{ secrets.GOOGLE_DRIVE_JSON_KEY }}
+  
 jobs:
   test:
     name: Run pytest + coverage
@@ -69,13 +75,17 @@ jobs:
       # ------------------------------------------------------
       # Run tests with coverage (Makefile handles cleanup)
       # ------------------------------------------------------
+      - name: Validate DB secrets
+        run: |
+          set -e
+          for var in RDS_HOST RDS_DB_NAME RDS_USER RDS_PASSWORD RDS_PORT; do
+            if [ -z "${!var}" ]; then
+              echo "ERROR: Secret $var is not defined!"
+              exit 1
+            fi
+          done
+
       - name: 🧪 Run tests + coverage
-        env:
-          RDS_HOST: ${{ secrets.RDS_HOST }}
-          RDS_DB_NAME: ${{ secrets.RDS_DB_NAME }}
-          RDS_USER: ${{ secrets.RDS_USER }}
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          RDS_PORT: ${{ secrets.RDS_PORT }}
         run: make test
 
       # ------------------------------------------------------
