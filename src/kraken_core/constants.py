@@ -1,9 +1,31 @@
+# --------------------------------------------------------------------
+# 🧰 Environment & Config
+# --------------------------------------------------------------------
+from __future__ import annotations
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import FrozenSet
+from dotenv import load_dotenv
 
 from .enums import FolderType
+
+load_dotenv()  # Load environment variables from .env file
+
+
+# -------------------------
+# Fail-fast helper for env vars
+# -------------------------
+def get_env_var(name: str, default: str | None = None, required: bool = False) -> str:
+    """Fetch environment variable, fail fast if missing and required."""
+    if name in os.environ:
+        return os.environ[name]
+    if required:
+        raise EnvironmentError(f"Missing required environment variable: {name}")
+    if default is not None:
+        return default
+    raise EnvironmentError(f"No value found for {name} and no default provided")
 
 
 # === Repository Scanning Configuration ===
@@ -16,14 +38,14 @@ class RepoScanConfig:
     SEPARATOR: str = "=" * 80
 
     # File extensions to include in scan
-    INCLUDED_EXTENSIONS: frozenset = frozenset(
-        os.getenv(
+    INCLUDED_EXTENSIONS: FrozenSet[str] = frozenset(
+        get_env_var(
             "SCAN_EXTENSIONS", ".py,.txt,.yml,.json,.md,Dockerfile,Makefile"
         ).split(",")
     )
 
     # Directories to skip during scanning
-    SKIP_DIRS: frozenset = frozenset(
+    SKIP_DIRS: FrozenSet[str] = frozenset(
         [
             ".git",
             ".hg",
@@ -42,10 +64,10 @@ class RepoScanConfig:
     )
 
     # Tree depth for printing repo structure
-    TREE_DEPTH: int = int(os.getenv("TREE_DEPTH", 10))
+    TREE_DEPTH: int = int(get_env_var("TREE_DEPTH", "10"))
 
     FALLBACK_CATEGORY: str = "other"
-    CATEGORIES_TO_SCAN: frozenset = frozenset(
+    CATEGORIES_TO_SCAN: FrozenSet[str] = frozenset(
         [".ci", ".github", "scripts", "src", "tests"]
     )
 
@@ -60,21 +82,43 @@ class PathsConfig:
 
     # --- Files --- #
     KRAKEN_TRADES_PDF: Path = Path(
-        os.getenv("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
+        get_env_var("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
     )
     PARSED_TRADES_EXCEL: Path = Path(
-        os.getenv("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
+        get_env_var("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
     )
 
     # --- Folders --- #
-    DOWNLOADS_DIR: Path = Path(
-        os.getenv("DOWNLOADS_DIR", f"{FolderType.DOWNLOADS.value}")
+    DOWNLOADS_DIR: Path = Path(get_env_var("DOWNLOADS_DIR", FolderType.DOWNLOADS.value))
+    UPLOADS_DIR: Path = Path(get_env_var("UPLOADS_DIR", FolderType.UPLOADS.value))
+    REPORTS_DIR: Path = Path(
+        get_env_var("REPORTS_DIR", f"../{FolderType.REPORTS.value}")
     )
-    UPLOADS_DIR: Path = Path(os.getenv("UPLOADS_DIR", f"{FolderType.UPLOADS.value}"))
-    REPORTS_DIR: Path = Path(os.getenv("REPORTS_DIR", f"../{FolderType.REPORTS.value}"))
 
-    # --- Repo root ---
-    REPO_ROOT: Path = Path(os.getenv("REPO_ROOT", ".")).resolve()
+    # --- Repo root --- #
+    REPO_ROOT: Path = Path(get_env_var("REPO_ROOT", ".")).resolve()
+
+
+# === Database / RDS Configuration ===
+@dataclass(frozen=True)
+class PostgresConfig:
+    host: str
+    port: int
+    dbname: str
+    user: str
+    password: str = field(repr=False)  # TODO important !! hide in repr for security
+
+    @staticmethod
+    def from_env() -> PostgresConfig:
+        host = get_env_var("RDS_HOST", required=True)
+        dbname = get_env_var("RDS_DB_NAME", required=True)
+        user = get_env_var("RDS_USER", required=True)
+        password = get_env_var("RDS_PASSWORD", required=True)
+        port = int(get_env_var("RDS_PORT", default="5432"))
+
+        return PostgresConfig(
+            host=host, port=port, dbname=dbname, user=user, password=password
+        )
 
 
 # === API Configuration ===
@@ -91,9 +135,7 @@ class KrakenAPI:
 
 # === Regex Patterns ===
 class TradeRegex:
-    """
-    Precompiled regex patterns for parsing trade data.
-    """
+    """Precompiled regex patterns for parsing trade data."""
 
     DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -120,10 +162,7 @@ class TradeRegex:
 # === Excel Styling ===
 @dataclass(frozen=True)
 class ExcelStyling:
-    """
-    Excel styling constants for header formatting.
-    These are used with openpyxl's PatternFill and Font.
-    """
+    """Excel styling constants for header formatting."""
 
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green
     HEADER_NEGATIVE_FILL: str = "FFC7CE"  # Light red
@@ -132,9 +171,7 @@ class ExcelStyling:
 # === Formatting Rules ===
 @dataclass(frozen=True)
 class FormatRules:
-    """
-    Formatting configuration for numeric precision.
-    """
+    """Formatting configuration for numeric precision."""
 
     DECIMAL_PLACES_10: int = 10
     DECIMAL_PLACES_2: int = 2

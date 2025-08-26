@@ -13,6 +13,7 @@ from .constants import (
     KrakenAPI,
     TradeRegex,
     RepoScanConfig,
+    PostgresConfig,
 )
 
 # === Logger ===
@@ -32,6 +33,7 @@ from .enums import RawColumn, TradeColumn, FolderType
 __all__ = [
     "PathsConfig",
     "KrakenAPI",
+    "PostgresConfig",
     "TradeRegex",
     "ExcelStyling",
     "FormatRules",

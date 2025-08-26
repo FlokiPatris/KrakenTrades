@@ -157,8 +157,8 @@ test: clean
 		--cov=. \
 		--cov-report=term-missing \
 		--cov-report=xml \
-		--maxfail=1 \
 		--disable-warnings
+	@$(MAKE) clean
 
 # -------------------- Debug target -----------------------
 test-debug: clean
@@ -167,7 +167,7 @@ test-debug: clean
 		--cov=. \
 		--cov-report=term-missing \
 		--cov-report=html \
-		--maxfail=1
+	@$(MAKE) clean
 
 # ==========================================================
 # Docker/Compose helpers
@@ -193,8 +193,8 @@ down:
 # ==========================================================
 clean:
 	@echo "→ Cleaning project artifacts"
-	@rm -rf $(CACHE_DIRS)
+	@rm -rf $(CACHE_DIRS) $(TEST_OUTPUT_DIRS) htmlcov
 	@rm -f .coverage coverage.xml junit.xml
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
-	@rm -rf $(TEST_OUTPUT_DIRS)
+	@find . -type d -name "trades_src.egg-info" -exec rm -rf {} +
 	@echo "✔ clean complete."
