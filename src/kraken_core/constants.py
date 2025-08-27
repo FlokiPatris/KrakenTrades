@@ -63,12 +63,17 @@ class RepoScanConfig:
         ]
     )
 
-    # Tree depth for printing repo structure
     TREE_DEPTH: int = int(get_env_var("TREE_DEPTH", "10"))
+    MAX_FILE_SIZE: int = int(
+        get_env_var("MAX_FILE_SIZE", str(10 * 1024 * 1024))
+    )  # 10 MB
 
     FALLBACK_CATEGORY: str = "other"
     CATEGORIES_TO_SCAN: FrozenSet[str] = frozenset(
         [".ci", ".github", "scripts", "src", "tests"]
+    )
+    CATEGORIES_TO_TEST: FrozenSet[str] = frozenset(
+        ["e2e", "smoke", "integration", "assertions"]
     )
 
 

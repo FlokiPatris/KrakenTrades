@@ -26,6 +26,7 @@ class FileHelper:
     downloads_dir: Path = PathsConfig.DOWNLOADS_DIR
     uploads_dir: Path = PathsConfig.UPLOADS_DIR
     reports_dir: Path = PathsConfig.REPORTS_DIR
+    repo_root: Path = PathsConfig.REPO_ROOT
 
     _instance: FileHelper | None = None
 
@@ -122,10 +123,8 @@ class FileHelper:
             custom_logger.error("❌ Failed writing to %s: %s", file_path, e)
             raise
 
-    def safe_read(
-        self, file_path: Path, max_size: int = 10 * 1024 * 1024
-    ) -> Optional[str]:
-        """Safely read a file if smaller than max_size (default 10MB)."""
+    def safe_read(self, file_path: Path, max_size: int) -> Optional[str]:
+        """Safely read a file if smaller than max_size."""
         try:
             size = file_path.stat().st_size
             if size > max_size:

@@ -1,78 +1,29 @@
-# =============================================================================
-# 🧩 Test Module: test_scan_repo_root.py
-# =============================================================================
-from pathlib import Path
-from typing import Generator, List
-from dataclasses import dataclass
-
 import pytest
 
-from kraken_core import RepoScanConfig, PathsConfig, FolderType
+from kraken_core import FolderType, PathsConfig
+from main import main
 from helpers import file_helper
-from scripts.scan_repo import scan_repository, log_repo_structure
+from tests.assertions import assert_script_generates_excel
 
 
-# =============================================================================
-# 🔧 Test Config
-# =============================================================================
-@dataclass(frozen=True)
-class ScanTestCase:
-    """Dataclass to define repo scan test cases."""
-
-    categories: frozenset
-
-
-repo_config = RepoScanConfig()
-tested_cases: List[ScanTestCase] = [
-    ScanTestCase(categories=repo_config.CATEGORIES_TO_SCAN),
-    ScanTestCase(categories=frozenset({"e2e"})),
-]
-
-
-# =============================================================================
-# 🧹 Fixtures
-# =============================================================================
 @pytest.fixture(autouse=True)
-def reports_dir() -> Generator[Path, None, None]:
+def clean_uploads_dir():
     """
-    Prepare and clean the reports directory before each test.
-
-    Yields:
-        Path: The path to the reports directory.
+    Ensure output dir is clean before/after each test.
     """
 
-    # Pre-test cleanup
-    file_helper.reset_dir(FolderType.REPORTS)
+    file_helper.reset_dir(FolderType.UPLOADS)
 
-    yield PathsConfig.REPORTS_DIR
-
-    # Post-test cleanup (safe-guard)
-    file_helper.reset_dir(FolderType.REPORTS)
+    yield
 
 
-# =============================================================================
-# ⚡ Test Cases
-# =============================================================================
-@pytest.mark.parametrize("test_case", tested_cases)
-@pytest.mark.e2e
-def test_scan_repo_root(test_case: ScanTestCase, reports_dir: Path) -> None:
+def test_script_generates_excel():
     """
-    End-to-end test: scanning the repository root generates category files without errors.
+    Smoke test: run script and check Excel report is generated.
     """
 
-    # Run repository structure logging
-    log_repo_structure(repo_config)
+    # Run the script
+    main()
 
-    # Run scanning
-    scan_repository(repo_config)
-
-    # Helper: assert file existence and non-empty
-    def assert_file_valid(file_path: Path) -> None:
-        assert file_path.exists(), f"Expected output file missing: {file_path}"
-        assert file_path.stat().st_size > 0, f"Output file is empty: {file_path}"
-
-    # Check that files are created for each category
-    for category in test_case.categories:
-        file_path = reports_dir / f"{category}.txt"
-        print(f"Checking for output file: {file_path}, {category}")
-        assert_file_valid(file_path)
+    # Use centralized assertion helpers
+    assert_script_generates_excel(PathsConfig.PARSED_TRADES_EXCEL.name)
