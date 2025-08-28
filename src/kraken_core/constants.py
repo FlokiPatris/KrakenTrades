@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet
 from dotenv import load_dotenv
-
-from .enums import FolderType
+from openpyxl.styles import Alignment, Font, PatternFill
+from .enums import TradeColumn, FolderType
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -174,13 +174,42 @@ class TradeRegex:
     PAIR_TOKEN = re.compile(r"^([A-Z0-9]+)/")
 
 
-# --------------------------------------------------------------------
-# 🎨 Excel Styling
-# --------------------------------------------------------------------
+# =============================================================================
+# 🎨 Styling Configuration
+# =============================================================================
 @dataclass(frozen=True)
 class ExcelStyling:
+    # === General constants ===
+    MAX_COLUMN_WIDTH: int = 40
+    HEADER_ROW_INDEX: int = 1
+    PORTFOLIO_SHEET: str = "Portfolio"
+    ASSET_ROI_SHEET: str = "Asset ROI"
+    SECTION_COLUMNS: int = 8  # Number of columns in merged ROI section header
+
+    # === Header fills (hex strings only) ===
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green
     HEADER_NEGATIVE_FILL: str = "FFC7CE"  # Light red
+
+    # === Fonts & Alignment ===
+    BOLD_FONT: Font = Font(bold=True)
+    LEFT_ALIGNMENT: Alignment = Alignment(horizontal="left", vertical="center")
+    CENTER_ALIGNMENT: Alignment = Alignment(horizontal="center", vertical="center")
+    RIGHT_ALIGNMENT: Alignment = Alignment(horizontal="right", vertical="center")
+
+    # === Cell fills ===
+    GREEN_FILL: PatternFill = PatternFill(start_color="C6EFCE", fill_type="solid")
+    RED_FILL: PatternFill = PatternFill(start_color="FFC7CE", fill_type="solid")
+
+    # === Columns that should be left-aligned ===
+    LEFT_ALIGNED_COLUMNS: frozenset[str] = frozenset(
+        {
+            TradeColumn.UNIQUE_ID.value,
+            TradeColumn.DATE.value,
+            TradeColumn.PAIR.value,
+            TradeColumn.TRADE_TYPE.value,
+            TradeColumn.EXECUTION_TYPE.value,
+        }
+    )
 
 
 # --------------------------------------------------------------------
