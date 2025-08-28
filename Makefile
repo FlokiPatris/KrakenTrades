@@ -163,10 +163,12 @@ test: clean
 # -------------------- Debug target -----------------------
 test-debug: clean
 	@echo "→ Running pytest in debug mode"
-	@$(PYTHON) -m pytest -s -o log_cli_level=INFO tests/ \
+	@$(PYTHON) -m pytest -s \
+		-o log_cli_level=INFO \
+		tests/ \
 		--cov=. \
 		--cov-report=term-missing \
-		--cov-report=html \
+		--cov-report=html
 	@$(MAKE) clean
 
 # ==========================================================

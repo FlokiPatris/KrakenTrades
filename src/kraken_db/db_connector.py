@@ -1,28 +1,50 @@
-# --------------------------------------------------------------------
+# =============================================================================
 # 🧰 Environment & Config
-# --------------------------------------------------------------------
+# =============================================================================
 from __future__ import annotations
+
 import psycopg2
-from psycopg2 import OperationalError
+from psycopg2 import OperationalError, extensions
 
-from kraken_core import custom_logger
-from kraken_core import PostgresConfig
+from kraken_core import custom_logger, PostgresConfig
 
 
-# --------------------------------------------------------------------
+# =============================================================================
 # 🛠️ Helper Functions
-# --------------------------------------------------------------------
-def connect_db(db_config: PostgresConfig) -> psycopg2.extensions.connection:
+# =============================================================================
+def connect_db(db_config: PostgresConfig) -> extensions.connection:
     """
-    Connect to PostgreSQL and return the connection object.
+    Connect to a PostgreSQL database and return the connection object.
     Caller is responsible for closing it.
-    Raises OperationalError if connection fails.
+
+    Logs detailed connection info (without exposing password) and propagates
+    OperationalError if connection fails.
+
+    Parameters
+    ----------
+    db_config : PostgresConfig
+        Database connection configuration.
+
+    Returns
+    -------
+    psycopg2.extensions.connection
+        Active database connection.
+
+    Raises
+    ------
+    OperationalError
+        If the connection cannot be established.
     """
+    custom_logger.info(
+        "🔗 Connecting to DB: host=%s, port=%s, db=%s, user=%s",
+        db_config.host,
+        db_config.port,
+        db_config.dbname,
+        db_config.user,
+    )
+
     try:
-        custom_logger.info(
-            f"🔗 Connecting to DB as user: {db_config.user}, port: {db_config.port}"
-        )
-        conn = psycopg2.connect(
+        conn: extensions.connection = psycopg2.connect(
             host=db_config.host,
             port=db_config.port,
             dbname=db_config.dbname,
@@ -30,9 +52,9 @@ def connect_db(db_config: PostgresConfig) -> psycopg2.extensions.connection:
             password=db_config.password,
             connect_timeout=5,
         )
-        custom_logger.info("✅ Connection established successfully!")
+        custom_logger.info("✅ Database connection established successfully!")
         return conn
 
-    except OperationalError as e:
-        custom_logger.error("❌ Could not connect to DB: %s", e)
-        raise  # propagate to caller
+    except OperationalError as err:
+        custom_logger.error("❌ Could not connect to DB: %s", err)
+        raise  # Fail-fast: propagate to caller

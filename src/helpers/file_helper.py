@@ -1,27 +1,29 @@
-"""
-FileHelper utility for safe file/folder operations.
-
-- Ensures required folders exist at initialization.
-- Provides safe read/write operations with size checks.
-- Supports resetting folders (deleting all content).
-- Generates textual tree structures for directories.
-- Singleton pattern ensures one instance across the pipeline.
-"""
-
+# =============================================================================
+# 🧰 Environment & Config
+# =============================================================================
 from __future__ import annotations
-import subprocess
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 import shutil
+import subprocess
 import errno
-from typing import Optional
+from typing import Optional, Final
 
 from kraken_core import FolderType, PathsConfig, custom_logger
 
 
+# =============================================================================
+# 🛠️ Constants
+# =============================================================================
+TREE_CMD_TIMEOUT: Final[int] = 5  # seconds
+
+
+# =============================================================================
+# 🧩 FileHelper Class
+# =============================================================================
 @dataclass
 class FileHelper:
-    """Singleton utility class for safe file/folder operations and I/O."""
+    """Singleton utility for safe file/folder operations and I/O."""
 
     downloads_dir: Path = PathsConfig.DOWNLOADS_DIR
     uploads_dir: Path = PathsConfig.UPLOADS_DIR
@@ -30,26 +32,26 @@ class FileHelper:
 
     _instance: FileHelper | None = None
 
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     # Singleton Instantiation
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     def __new__(cls) -> FileHelper:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.__post_init__()
         return cls._instance
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure all key folders exist at initialization."""
         for folder in [self.reports_dir, self.downloads_dir, self.uploads_dir]:
             self.ensure_dir(folder)
 
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     # Directory Operations
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     @staticmethod
     def ensure_dir(path: Path) -> Path:
-        """Ensure a directory exists; create if missing."""
+        """Ensure a directory exists; create it if missing."""
         try:
             path.mkdir(parents=True, exist_ok=True)
         except PermissionError as e:
@@ -63,7 +65,7 @@ class FileHelper:
                 raise
         return path
 
-    def reset_dir(self, folder: FolderType):
+    def reset_dir(self, folder: FolderType) -> None:
         """Delete all files and subfolders in the specified folder."""
         path = self._get_folder_path(folder)
         if not path.exists():
@@ -89,15 +91,17 @@ class FileHelper:
         """Return the path for the given folder type."""
         return self._get_folder_path(folder)
 
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     # Directory Tree Representation
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     @staticmethod
     def get_tree_structure(root_path: Path, depth: int = 2) -> str:
         """Return a textual tree structure for a directory."""
         try:
             return subprocess.check_output(
-                ["tree", "-L", str(depth), str(root_path)], text=True
+                ["tree", "-L", str(depth), str(root_path)],
+                text=True,
+                timeout=TREE_CMD_TIMEOUT,
             )
         except subprocess.CalledProcessError as e:
             custom_logger.error("❌ 'tree' command failed for %s: %s", root_path, e)
@@ -105,13 +109,13 @@ class FileHelper:
         except FileNotFoundError:
             custom_logger.error("❌ 'tree' command not found. Please install it.")
             return ""
-        except Exception as e:
-            custom_logger.warning("⚠️ Could not generate tree for %s: %s", root_path, e)
+        except subprocess.TimeoutExpired as e:
+            custom_logger.warning("⚠️ 'tree' command timed out for %s: %s", root_path, e)
             return ""
 
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     # Safe File I/O
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     def safe_write(self, file_path: Path, content: str, mode: str = "a") -> None:
         """Safely write content to a file, creating parent directories if needed."""
         self.ensure_dir(file_path.parent)
@@ -119,7 +123,7 @@ class FileHelper:
             with file_path.open(mode, encoding="utf-8") as f:
                 f.write(content)
             custom_logger.info("✅ Written to file: %s", file_path)
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             custom_logger.error("❌ Failed writing to %s: %s", file_path, e)
             raise
 
@@ -133,13 +137,13 @@ class FileHelper:
                 )
                 return None
             return file_path.read_text(encoding="utf-8")
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             custom_logger.error("❌ Could not read %s: %s", file_path, e)
             return None
 
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     # Internal Helpers
-    # --------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     def _get_folder_path(self, folder: FolderType) -> Path:
         """Map FolderType enum to actual folder path."""
         mapping = {
@@ -154,5 +158,7 @@ class FileHelper:
             raise ValueError(f"Unsupported folder type: {folder}") from e
 
 
-# ✅ Global singleton instance
+# =============================================================================
+# 🌟 Global Singleton Instance
+# =============================================================================
 file_helper = FileHelper()
