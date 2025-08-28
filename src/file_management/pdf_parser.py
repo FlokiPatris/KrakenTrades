@@ -1,5 +1,8 @@
+# --------------------------------------------------------------------
+# 🧾 Kraken PDF Trade Parser
+# --------------------------------------------------------------------
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 import pandas as pd
 import pdfplumber
@@ -13,46 +16,89 @@ from kraken_core import (
 )
 
 
-# === PDF Trade Extractor ===
-def extract_kraken_trade_records_from_pdf(path: Path) -> List[dict]:
+# --------------------------------------------------------------------
+# 🛠 Helper Functions
+# --------------------------------------------------------------------
+def _extract_trade_lines_from_page(lines: List[str]) -> List[str]:
+    """
+    Merge date and trade lines for regex matching.
+    """
+    merged_lines: List[str] = []
+    i = 0
+    while i < len(lines) - 1:
+        date_line = lines[i].strip()
+        trade_line = lines[i + 1].strip()
+
+        if TradeRegex.DATE.match(date_line) and not trade_line.startswith("Page"):
+            merged_lines.append(f"{date_line} {trade_line}")
+            i += 2
+        else:
+            i += 1
+    return merged_lines
+
+
+def _convert_numeric_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+    """
+    Convert specified columns to numeric with fixed decimal places.
+    """
+    for col in columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce").round(FormatRules.DECIMAL_PLACES_10)  # type: ignore
+        custom_logger.debug(f"Converted column to numeric: {col}")
+    return df
+
+
+def _extract_currency_token(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Extract currency and token from trading pair column.
+    """
+    df[TradeColumn.CURRENCY.value] = df[TradeColumn.PAIR.value].str.extract(TradeRegex.PAIR_CURRENCY)  # type: ignore
+    df[TradeColumn.TOKEN.value] = df[TradeColumn.PAIR.value].str.extract(TradeRegex.PAIR_TOKEN)  # type: ignore
+    custom_logger.debug("Extracted currency and token from trading pair")
+    return df
+
+
+# --------------------------------------------------------------------
+# 📄 PDF Trade Extractor
+# --------------------------------------------------------------------
+def extract_kraken_trade_records_from_pdf(path: Path) -> List[Dict[str, str]]:
     """
     Extracts Kraken trade records from a PDF file using regex patterns.
+
+    Args:
+        path (Path): Path to the Kraken trade PDF.
+
+    Returns:
+        List[Dict[str, str]]: List of raw trade records as dictionaries.
+
+    Raises:
+        FileNotFoundError: If the PDF does not exist.
+        RuntimeError: If no trades could be extracted.
     """
+    if not path.exists():
+        raise FileNotFoundError(f"PDF file not found: {path}")
+
     custom_logger.info(f"📄 Starting PDF extraction from: {path}")
-    records: List[dict] = []
+    records: List[Dict[str, str]] = []
 
-    try:
-        with pdfplumber.open(path) as pdf:
-            custom_logger.debug(f"Opened PDF with {len(pdf.pages)} pages")
+    with pdfplumber.open(path) as pdf:
+        custom_logger.debug(f"Opened PDF with {len(pdf.pages)} pages")
 
-            for page_num, page in enumerate(pdf.pages, start=1):
-                lines = page.extract_text().split("\n")
-                custom_logger.debug(f"Page {page_num}: Extracted {len(lines)} lines")
+        for page_num, page in enumerate(pdf.pages, start=1):
+            text = page.extract_text()
+            if not text:
+                continue
+            lines = text.split("\n")
+            custom_logger.debug(f"Page {page_num}: Extracted {len(lines)} lines")
 
-                i = 0
-                while i < len(lines) - 1:
-                    date_line = lines[i].strip()
-                    trade_line = lines[i + 1].strip()
+            merged_lines = _extract_trade_lines_from_page(lines)
 
-                    if TradeRegex.DATE.match(date_line) and not trade_line.startswith(
-                        "Page"
-                    ):
-                        merged = f"{date_line} {trade_line}"
-                        match = TradeRegex.TRADE.match(merged)
-
-                        if match:
-                            records.append(match.groupdict())
-                            custom_logger.debug(f"Matched trade: {match.groupdict()}")
-                        else:
-                            custom_logger.warning(f"Unmatched trade line: {merged}")
-
-                        i += 2
-                    else:
-                        i += 1
-
-    except Exception as e:
-        custom_logger.exception(f"❌ Failed to extract trades from PDF: {e}")
-        raise
+            for merged in merged_lines:
+                match = TradeRegex.TRADE.match(merged)
+                if match:
+                    records.append(match.groupdict())
+                    custom_logger.debug(f"Matched trade: {match.groupdict()}")
+                else:
+                    custom_logger.warning(f"Unmatched trade line: {merged}")
 
     if not records:
         custom_logger.error("No trades matched — check PDF format or regex.")
@@ -62,10 +108,18 @@ def extract_kraken_trade_records_from_pdf(path: Path) -> List[dict]:
     return records
 
 
-# === Trade DataFrame Builder ===
-def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
+# --------------------------------------------------------------------
+# 📊 Trade DataFrame Builder
+# --------------------------------------------------------------------
+def build_trade_dataframe(records: List[Dict[str, str]]) -> pd.DataFrame:
     """
     Converts raw trade records into a formatted DataFrame with standardized columns.
+
+    Args:
+        records (List[Dict[str, str]]): List of raw trade records.
+
+    Returns:
+        pd.DataFrame: Formatted DataFrame with standardized trade columns.
     """
     custom_logger.info(f"🔧 Building trade DataFrame from {len(records)} records")
     df = pd.DataFrame(records)
@@ -83,12 +137,7 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
         RawColumn.VOLUME.value,
         RawColumn.FEE.value,
     ]
-
-    for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce").round(
-            FormatRules.DECIMAL_PLACES_10
-        )
-        custom_logger.debug(f"Converted column to numeric: {col}")
+    df = _convert_numeric_columns(df, numeric_columns)
 
     # Rename columns using RawColumn → TradeColumn mapping
     rename_map = {
@@ -101,18 +150,11 @@ def build_trade_dataframe(records: List[dict]) -> pd.DataFrame:
         RawColumn.VOLUME.value: TradeColumn.TRANSFERRED_VOLUME.value,
         RawColumn.FEE.value: TradeColumn.FEE.value,
     }
-
     df = df.rename(columns=rename_map)
     custom_logger.debug("Renamed columns to standardized format")
 
-    # Extract currency and token from pair
-    df[TradeColumn.CURRENCY.value] = df[TradeColumn.PAIR.value].str.extract(
-        TradeRegex.PAIR_CURRENCY
-    )
-    df[TradeColumn.TOKEN.value] = df[TradeColumn.PAIR.value].str.extract(
-        TradeRegex.PAIR_TOKEN
-    )
-    custom_logger.debug("Extracted currency and token from trading pair")
+    # Extract currency and token
+    df = _extract_currency_token(df)
 
     # Final column order
     final_df = df[[col.value for col in TradeColumn]]

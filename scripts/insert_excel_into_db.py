@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env file
 
+# TODO: Needs refactoring!!
+
 DB_CONFIG = {
     "host": os.environ.get("RDS_HOST", ""),
     "port": int(os.environ.get("RDS_PORT", 5432)),

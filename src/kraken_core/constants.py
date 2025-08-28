@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet
 from dotenv import load_dotenv
-
-from .enums import FolderType
+from openpyxl.styles import Alignment, Font, PatternFill
+from .enums import TradeColumn, FolderType
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -18,7 +18,10 @@ load_dotenv()  # Load environment variables from .env file
 # Fail-fast helper for env vars
 # -------------------------
 def get_env_var(name: str, default: str | None = None, required: bool = False) -> str:
-    """Fetch environment variable, fail fast if missing and required."""
+    """
+    Fetch an environment variable.
+    Fail fast if required variable is missing or if no default is provided.
+    """
     if name in os.environ:
         return os.environ[name]
     if required:
@@ -28,7 +31,9 @@ def get_env_var(name: str, default: str | None = None, required: bool = False) -
     raise EnvironmentError(f"No value found for {name} and no default provided")
 
 
-# === Repository Scanning Configuration ===
+# --------------------------------------------------------------------
+# 🗂 Repository Scanning Configuration
+# --------------------------------------------------------------------
 @dataclass(frozen=True)
 class RepoScanConfig:
     """
@@ -39,9 +44,7 @@ class RepoScanConfig:
 
     # File extensions to include in scan
     INCLUDED_EXTENSIONS: FrozenSet[str] = frozenset(
-        get_env_var(
-            "SCAN_EXTENSIONS", ".py,.txt,.yml,.json,.md,Dockerfile,Makefile"
-        ).split(",")
+        [".py", ".txt", ".yml", ".json", ".md", "Dockerfile", "Makefile"]
     )
 
     # Directories to skip during scanning
@@ -63,12 +66,10 @@ class RepoScanConfig:
         ]
     )
 
-    TREE_DEPTH: int = int(get_env_var("TREE_DEPTH", "10"))
-    MAX_FILE_SIZE: int = int(
-        get_env_var("MAX_FILE_SIZE", str(10 * 1024 * 1024))
-    )  # 10 MB
-
+    TREE_DEPTH: int = 10
+    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB
     FALLBACK_CATEGORY: str = "other"
+
     CATEGORIES_TO_SCAN: FrozenSet[str] = frozenset(
         [".ci", ".github", "scripts", "src", "tests"]
     )
@@ -77,12 +78,13 @@ class RepoScanConfig:
     )
 
 
+# --------------------------------------------------------------------
+# 📁 Paths Configuration
+# --------------------------------------------------------------------
 @dataclass(frozen=True)
 class PathsConfig:
     """
     Centralized configuration for folders and files.
-    - Folders: controlled via FolderType enum
-    - Files: fixed paths, can be overridden via environment variables
     """
 
     # --- Files --- #
@@ -104,17 +106,23 @@ class PathsConfig:
     REPO_ROOT: Path = Path(get_env_var("REPO_ROOT", ".")).resolve()
 
 
-# === Database / RDS Configuration ===
+# --------------------------------------------------------------------
+# 🗄 Database / RDS Configuration
+# --------------------------------------------------------------------
 @dataclass(frozen=True)
 class PostgresConfig:
     host: str
     port: int
     dbname: str
     user: str
-    password: str = field(repr=False)  # TODO important !! hide in repr for security
+    password: str = field(repr=False)  # Hide sensitive info in repr
 
     @staticmethod
     def from_env() -> PostgresConfig:
+        """
+        Load Postgres configuration from environment variables.
+        Fail-fast if required variables are missing.
+        """
         host = get_env_var("RDS_HOST", required=True)
         dbname = get_env_var("RDS_DB_NAME", required=True)
         user = get_env_var("RDS_USER", required=True)
@@ -126,7 +134,9 @@ class PostgresConfig:
         )
 
 
-# === API Configuration ===
+# --------------------------------------------------------------------
+# 🌐 API Configuration
+# --------------------------------------------------------------------
 @dataclass(frozen=True)
 class KrakenAPI:
     """
@@ -138,15 +148,16 @@ class KrakenAPI:
     TIMEOUT: int = 10  # seconds
 
 
-# === Regex Patterns ===
+# --------------------------------------------------------------------
+# 🔍 Regex Patterns
+# --------------------------------------------------------------------
 class TradeRegex:
     """Precompiled regex patterns for parsing trade data."""
 
     DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
     TRADE = re.compile(
-        r"""^
-        (?P<date>\d{4}-\d{2}-\d{2})\s+
+        r"""
+        ^(?P<date>\d{4}-\d{2}-\d{2})\s+
         (?P<uid>[A-Z0-9-]+)\s+
         (?P<pair>[A-Z0-9]+/[A-Z0-9]+)\s+
         (?P<type>Buy|Sell)\s+
@@ -159,25 +170,53 @@ class TradeRegex:
         """,
         re.VERBOSE,
     )
-
     PAIR_CURRENCY = re.compile(r"/([A-Z]+)")
     PAIR_TOKEN = re.compile(r"^([A-Z0-9]+)/")
 
 
-# === Excel Styling ===
+# =============================================================================
+# 🎨 Styling Configuration
+# =============================================================================
 @dataclass(frozen=True)
 class ExcelStyling:
-    """Excel styling constants for header formatting."""
+    # === General constants ===
+    MAX_COLUMN_WIDTH: int = 40
+    HEADER_ROW_INDEX: int = 1
+    PORTFOLIO_SHEET: str = "Portfolio"
+    ASSET_ROI_SHEET: str = "Asset ROI"
+    SECTION_COLUMNS: int = 8  # Number of columns in merged ROI section header
 
+    # === Header fills (hex strings only) ===
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green
     HEADER_NEGATIVE_FILL: str = "FFC7CE"  # Light red
 
+    # === Fonts & Alignment ===
+    BOLD_FONT: Font = Font(bold=True)
+    LEFT_ALIGNMENT: Alignment = Alignment(horizontal="left", vertical="center")
+    CENTER_ALIGNMENT: Alignment = Alignment(horizontal="center", vertical="center")
+    RIGHT_ALIGNMENT: Alignment = Alignment(horizontal="right", vertical="center")
 
-# === Formatting Rules ===
+    # === Cell fills ===
+    GREEN_FILL: PatternFill = PatternFill(start_color="C6EFCE", fill_type="solid")
+    RED_FILL: PatternFill = PatternFill(start_color="FFC7CE", fill_type="solid")
+
+    # === Columns that should be left-aligned ===
+    LEFT_ALIGNED_COLUMNS: frozenset[str] = frozenset(
+        {
+            TradeColumn.UNIQUE_ID.value,
+            TradeColumn.DATE.value,
+            TradeColumn.PAIR.value,
+            TradeColumn.TRADE_TYPE.value,
+            TradeColumn.EXECUTION_TYPE.value,
+        }
+    )
+
+
+# --------------------------------------------------------------------
+# 🔢 Formatting Rules
+# --------------------------------------------------------------------
 @dataclass(frozen=True)
 class FormatRules:
-    """Formatting configuration for numeric precision."""
-
     DECIMAL_PLACES_10: int = 10
     DECIMAL_PLACES_2: int = 2
     DECIMAL_PLACES_8: int = 8

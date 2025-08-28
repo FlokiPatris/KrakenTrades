@@ -1,12 +1,152 @@
+from __future__ import annotations
+
+# =============================================================================
+# 📦 Imports
+# =============================================================================
 from pathlib import Path
-
-from openpyxl import load_workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from typing import List, Iterable
+from openpyxl import Workbook, load_workbook
+from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.cell.cell import Cell
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill
 
-from kraken_core import ExcelStyling, TradeColumn, custom_logger
+from kraken_core import ExcelStyling, custom_logger
 
 
+# =============================================================================
+# 🛠 Helper Functions
+# =============================================================================
+def _auto_adjust_columns(ws: Worksheet) -> None:
+    """Auto-adjust column widths with a max width limit from ExcelStyling."""
+    for col in ws.columns:
+        max_width: int = max(len(str(cell.value) or "") for cell in col) + 4
+
+        col_index: int | None = col[0].column
+        if col_index is None:
+            continue
+
+        col_letter: str = get_column_letter(col_index)
+        ws.column_dimensions[col_letter].width = min(
+            max_width, ExcelStyling.MAX_COLUMN_WIDTH
+        )
+
+
+def _style_header(ws: Worksheet) -> None:
+    """Apply bold + center alignment to header row."""
+    for cell in ws[ExcelStyling.HEADER_ROW_INDEX]:
+        cell.font = ExcelStyling.BOLD_FONT
+        cell.alignment = ExcelStyling.CENTER_ALIGNMENT
+
+
+def _style_portfolio_sheet(ws: Worksheet) -> None:
+    """Apply Portfolio-specific formatting."""
+    custom_logger.info("📊 Styling Portfolio sheet")
+    for row in ws.iter_rows(min_row=2):
+        row[0].alignment = ExcelStyling.LEFT_ALIGNMENT
+        row[1].alignment = ExcelStyling.RIGHT_ALIGNMENT
+
+        if str(row[0].value) == "Result":
+            row[1].font = ExcelStyling.BOLD_FONT
+            row[1].fill = (
+                ExcelStyling.GREEN_FILL
+                if "up" in str(row[1].value).lower()
+                else ExcelStyling.RED_FILL
+            )
+
+
+def _insert_roi_section(
+    ws: Worksheet,
+    title: str,
+    fill: PatternFill,
+    row_list: List[Iterable[Cell]],
+    start_row: int,
+) -> None:
+    """Insert a titled section with conditional coloring into the Asset ROI sheet."""
+    custom_logger.info(f"📌 Inserting section: {title}")
+    ws.insert_rows(start_row)
+    ws.merge_cells(
+        start_row=start_row,
+        start_column=1,
+        end_row=start_row,
+        end_column=ExcelStyling.SECTION_COLUMNS,
+    )
+
+    title_cell = ws.cell(row=start_row, column=1)
+    title_cell.value = title
+    title_cell.font = ExcelStyling.BOLD_FONT
+    title_cell.alignment = ExcelStyling.CENTER_ALIGNMENT
+    title_cell.fill = fill
+
+    for i, row in enumerate(row_list, start=start_row + 1):
+        for j, cell in enumerate(row, start=1):
+            new_cell = ws.cell(row=i, column=j, value=cell.value)
+            if j in (7, 8) and isinstance(cell.value, (int, float)):
+                new_cell.fill = (
+                    ExcelStyling.GREEN_FILL
+                    if cell.value >= 0
+                    else ExcelStyling.RED_FILL
+                )
+
+
+def _style_asset_roi_sheet(ws: Worksheet) -> None:
+    """Apply Asset ROI-specific formatting and regroup positive/negative ROI assets."""
+    custom_logger.info("📈 Styling Asset ROI sheet")
+
+    rows = list(ws.iter_rows(min_row=2, max_row=ws.max_row))
+    pos_rows = [r for r in rows if r[6].value is not None and r[6].value >= 0]
+    neg_rows = [r for r in rows if r[6].value is not None and r[6].value < 0]
+
+    # Clear existing rows before reinserting grouped sections
+    ws.delete_rows(2, ws.max_row)
+
+    if pos_rows:
+        _insert_roi_section(
+            ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2
+        )
+    if neg_rows:
+        _insert_roi_section(
+            ws,
+            "🔻 Negative ROI Assets 🔻",
+            ExcelStyling.RED_FILL,
+            neg_rows,
+            3 + len(pos_rows),
+        )
+
+
+def _style_token_sheet(ws: Worksheet) -> None:
+    """Apply token-specific formatting for alignment consistency."""
+    custom_logger.info(f"📄 Styling token sheet: {ws.title}")
+
+    col_names: List[str] = [cell.value for cell in ws[ExcelStyling.HEADER_ROW_INDEX]]
+
+    for row in ws.iter_rows(min_row=2):
+        for col_idx, cell in enumerate(row, start=1):
+            col_name: str = (
+                col_names[col_idx - 1] if col_idx - 1 < len(col_names) else ""
+            )
+            cell.alignment = (
+                ExcelStyling.LEFT_ALIGNMENT
+                if col_name in ExcelStyling.LEFT_ALIGNED_COLUMNS
+                else ExcelStyling.RIGHT_ALIGNMENT
+            )
+
+
+def _reorder_sheets(wb: Workbook) -> None:
+    """Reorder sheets so Portfolio comes first, Asset ROI second, then tokens."""
+    custom_logger.info("🔀 Reordering sheets")
+    wb._sheets.sort(
+        key=lambda s: (
+            0
+            if s.title == ExcelStyling.PORTFOLIO_SHEET
+            else 1 if s.title == ExcelStyling.ASSET_ROI_SHEET else 2
+        )
+    )
+
+
+# =============================================================================
+# 🎨 Core Function
+# =============================================================================
 def style_excel(output: Path) -> None:
     """
     Apply styling to the Excel workbook at the given path.
@@ -15,121 +155,30 @@ def style_excel(output: Path) -> None:
     custom_logger.info(f"📄 Loading workbook: {output}")
     wb = load_workbook(output)
 
-    # Define reusable styles
-    bold = Font(bold=True)
-    center = Alignment(horizontal="center", vertical="center")
-    left = Alignment(horizontal="left", vertical="center")
-    right = Alignment(horizontal="right", vertical="center")
-    green_fill = PatternFill(
-        start_color=ExcelStyling.HEADER_POSITIVE_FILL, fill_type="solid"
-    )
-    red_fill = PatternFill(
-        start_color=ExcelStyling.HEADER_NEGATIVE_FILL, fill_type="solid"
-    )
-
-    # === General sheet formatting ===
+    # --- General formatting ---
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         custom_logger.info(f"🎨 Formatting sheet: {sheet_name}")
+        _auto_adjust_columns(ws)
+        _style_header(ws)
 
-        # Auto-adjust column widths
-        for col in ws.columns:
-            max_width = max(len(str(cell.value) or "") for cell in col) + 4
-            ws.column_dimensions[get_column_letter(col[0].column)].width = min(
-                max_width, 40
-            )
+    # --- Portfolio sheet ---
+    if ExcelStyling.PORTFOLIO_SHEET in wb.sheetnames:
+        _style_portfolio_sheet(wb[ExcelStyling.PORTFOLIO_SHEET])
 
-        # Style header row
-        for cell in ws[1]:
-            cell.font = bold
-            cell.alignment = center
+    # --- Asset ROI sheet ---
+    if ExcelStyling.ASSET_ROI_SHEET in wb.sheetnames:
+        _style_asset_roi_sheet(wb[ExcelStyling.ASSET_ROI_SHEET])
 
-    # === Portfolio sheet styling ===
-    if "Portfolio" in wb.sheetnames:
-        ws = wb["Portfolio"]
-        custom_logger.info("📊 Styling Portfolio sheet")
-
-        for row in ws.iter_rows(min_row=2):
-            row[0].alignment = left
-            row[1].alignment = right
-
-            if str(row[0].value) == "Result":
-                row[1].font = bold
-                row[1].fill = (
-                    green_fill if "up" in str(row[1].value).lower() else red_fill
-                )
-
-    # === Asset ROI sheet styling ===
-    if "Asset ROI" in wb.sheetnames:
-        ws = wb["Asset ROI"]
-        custom_logger.info("📈 Styling Asset ROI sheet")
-
-        rows = list(ws.iter_rows(min_row=2, max_row=ws.max_row))
-        pos_rows = [r for r in rows if r[6].value is not None and r[6].value >= 0]
-        neg_rows = [r for r in rows if r[6].value is not None and r[6].value < 0]
-
-        ws.delete_rows(2, ws.max_row)  # Clear existing data
-
-        def insert_section(
-            title: str, fill: PatternFill, row_list: list, start_row: int
-        ):
-            custom_logger.info(f"📌 Inserting section: {title}")
-            ws.insert_rows(start_row)
-            ws.merge_cells(
-                start_row=start_row, start_column=1, end_row=start_row, end_column=8
-            )
-
-            title_cell = ws.cell(row=start_row, column=1)
-            title_cell.value = title
-            title_cell.font = bold
-            title_cell.alignment = center
-            title_cell.fill = fill
-
-            for i, row in enumerate(row_list, start=start_row + 1):
-                for j, cell in enumerate(row, start=1):
-                    new_cell = ws.cell(row=i, column=j, value=cell.value)
-                    if j in (7, 8) and isinstance(cell.value, (int, float)):
-                        new_cell.fill = green_fill if cell.value >= 0 else red_fill
-
-        if pos_rows:
-            insert_section("🟢 Positive ROI Assets 🟢", green_fill, pos_rows, 2)
-        if neg_rows:
-            insert_section(
-                "🔻 Negative ROI Assets 🔻", red_fill, neg_rows, 3 + len(pos_rows)
-            )
-
-    # === Individual token sheet styling ===
-    left_cols = {
-        TradeColumn.UNIQUE_ID.value,
-        TradeColumn.DATE.value,
-        TradeColumn.PAIR.value,
-        TradeColumn.TRADE_TYPE.value,
-        TradeColumn.EXECUTION_TYPE.value,
-    }
-
+    # --- Token sheets ---
     for sheet_name in wb.sheetnames:
-        if sheet_name in {"Portfolio", "Asset ROI"}:
-            continue
+        if sheet_name not in {
+            ExcelStyling.PORTFOLIO_SHEET,
+            ExcelStyling.ASSET_ROI_SHEET,
+        }:
+            _style_token_sheet(wb[sheet_name])
 
-        ws = wb[sheet_name]
-        custom_logger.info(f"📄 Styling token sheet: {sheet_name}")
-
-        col_names = [cell.value for cell in ws[1]]
-        for row in ws.iter_rows(min_row=2):
-            for col_idx, cell in enumerate(row, start=1):
-                col_name = (
-                    col_names[col_idx - 1] if col_idx - 1 < len(col_names) else ""
-                )
-                cell.alignment = left if col_name in left_cols else right
-
-    # === Sheet ordering ===
-    custom_logger.info("🔀 Reordering sheets")
-    wb._sheets.sort(
-        key=lambda s: (
-            0 if s.title == "Portfolio" else (1 if s.title == "Asset ROI" else 2)
-        )
-    )
-
-    # Save workbook
+    # --- Reorder & Save ---
+    _reorder_sheets(wb)
     wb.save(output)
     custom_logger.info(f"✅ Workbook saved: {output}")
