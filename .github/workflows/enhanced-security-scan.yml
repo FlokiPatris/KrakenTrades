@@ -65,13 +65,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: 🧰 Install minimal system dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            make ca-certificates git curl jq
-          sudo rm -rf /var/lib/apt/lists/*
+      - name: 📦 Install Python dependencies
+        run: make install-deps
 
       - name: 🔐 Run AppSec suite via Makefile
         run: make appsec  # Delegates scanning to Makefile (DRY)
