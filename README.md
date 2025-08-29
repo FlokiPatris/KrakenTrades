@@ -97,7 +97,7 @@ Security tooling is invoked via Makefile targets:
 
 SARIF conversion helper: `.ci/bin/sarif_convert.py` — converts tool outputs (Bandit, pip-audit, ShellCheck) into SARIF 2.1.0 and writes files with restrictive permissions (0o600). CI uploads SARIF artifacts only when configured to do so (see `UPLOAD_SARIF` gating in workflows).
 
-# Repository layout (high-level)
+# Repository layout
 - `main.py` — pipeline entry point.
 - `requirements.txt` — Python dependencies.
 - `Makefile` — common tasks (install, test, appsec, docker).
