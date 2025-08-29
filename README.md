@@ -2,6 +2,7 @@
 
 **Quick links**
 - [What is this?](#what-is-this)
+- [Examples PNGs](#examples)
 - [For recruiters (summary)](#for-recruiters-summary)
 - [Run locally (detailed)](#run-locally-detailed)
 - [Run with Docker / Compose](#run-with-docker--compose)
@@ -13,7 +14,6 @@
 - [Contributing & tests](#contributing--tests)
 - [Privacy / GDPR & Security notes](#privacy--gdpr--security-notes)
 - [License & contact](#license--contact)
-- [Examples PNGs](#examples)
 
 # What is this?
 
