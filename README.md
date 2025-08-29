@@ -13,7 +13,7 @@
 - [Contributing & tests](#contributing--tests)
 - [Privacy / GDPR & Security notes](#privacy--gdpr--security-notes)
 - [License & contact](#license--contact)
-- [Examples](#examples)
+- [Examples PNGs](#examples)
 
 # What is this?
 
