@@ -73,5 +73,5 @@ def test_scan_repo_root(test_case: ScanTestCase, reports_dir: Path) -> None:
     # Check that files are created for each category
     for category in test_case.categories:
         file_path = reports_dir / f"{category}.txt"
-        print(f"Checking for output file: {file_path}, {category}")
+
         assert_file_valid(file_path)
