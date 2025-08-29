@@ -11,17 +11,12 @@
 - [Environment variables / .env](#environment-variables--env)
 - [How it works (high level)](#how-it-works-high-level)
 - [For developers (technical notes)](#for-developers-technical-notes)
-- [Contributing & tests](#contributing--tests)
-- [Privacy / GDPR & Security notes](#privacy--gdpr--security-notes)
 - [License & contact](#license--contact)
 
 # What is this?
-
 KrakenTrades is a pipeline that ingests Kraken trade statement PDFs, parses trade records, builds Pandas DataFrames and writes a styled Excel report suitable for downstream analysis or archival. It is designed to be CI/CD friendly, secure by default (SARIF, secret scanning, hardened file permissions) and production-oriented (Docker, DB integration).
 
 # For recruiters (summary)
-
-A concise overview you can read in ~30s:
 - Purpose: Convert Kraken PDF trade statements into a clean, styled Excel summary.
 - Languages / tech: Python 3.11+, Pandas, pdfplumber, openpyxl; Docker; GitHub Actions for CI.
 - Production features: tests (pytest), Docker image + compose, appsec scans (Bandit, ShellCheck, pip-audit, gitleaks, Trivy), SARIF conversion for security tooling.
@@ -37,28 +32,7 @@ A concise overview you can read in ~30s:
 
 ## Install deps
     make install-deps
-
-## Configure environment
-Create a `.env` file in the project root or export environment variables. Example (safe defaults shown; **do not** commit real secrets):
-    # File: .env (example)
-    UPLOADS_DIR=uploads
-    DOWNLOADS_DIR=downloads
-    KRAKEN_TRADES_PDF=downloads/trades.pdf
-    PARSED_TRADES_EXCEL=uploads/kraken_trade_summary.xlsx
-    REPORTS_DIR=reports
-    REPO_ROOT=.
-
-    # Optional (DB)
-    RDS_HOST=localhost
-    RDS_DB_NAME=test
-    RDS_USER=test_user
-    RDS_PASSWORD=supersecret
-    RDS_PORT=5432
-
-    # Optional (Google Drive integration / CI)
-    # Provide this as GitHub Secret in CI; locally you can set a path or base64 JSON
-    GOOGLE_DRIVE_JSON_KEY=<base64-or-path>
-
+    
 ## Run the script
 - Ensure the input PDF exists at `KRAKEN_TRADES_PDF` (default: `downloads/trades.pdf`).
     python main.py
@@ -167,24 +141,28 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
   - Use type hints and dataclasses where appropriate (repository already uses pydantic/dataclasses patterns).
   - Keep functions small and testable; prefer pure functions for parsing + transformation logic.
 
-# Contributing & tests
-
-To run tests locally:
-
-    make install-deps
-    make test
-
 # License & contact
 - Author / Contact:
   - Floki Patris
+    
+# Github:
+All running PR pipelines:
 
-# Examples
+Expanded PR checks:
+<img width="1917" height="912" alt="image" src="https://github.com/user-attachments/assets/d5a365a4-2d33-45a2-b202-dceca0085d7e" />
+
+Leak found (Security pipeline in action):
+
+
+
+# Excel File Example:
 1. Portfolio sheet (First Excel sheet)
 <img width="1536" height="1024" alt="blur the prices for readme" src="https://github.com/user-attachments/assets/bd057760-bda0-44e0-a9aa-1f84fa4e5d28" />
+
 2. Asset ROI sheet (Second Excel sheet)
 <img width="1054" height="383" alt="asset roi sheet" src="https://github.com/user-attachments/assets/4cbf0fca-5d00-4f4f-a0c5-1be864c8e09d" />
+
 3. BTC/EUR Sheet (One of the trade pair sheets)
 <img width="1065" height="328" alt="bitcoin sheet" src="https://github.com/user-attachments/assets/df35b3a8-8013-454e-912c-6c36ec4a227a" />
-
 ---
 
