@@ -136,6 +136,9 @@ Expanded PR checks:
 Leak found (Security pipeline in action):
 <img width="924" height="449" alt="image" src="https://github.com/user-attachments/assets/9f26d18a-fb6a-4707-bad0-b65a04b49fbe" />
 
+Daily email service (Using security repository variables set on Github):
+<img width="1309" height="78" alt="image" src="https://github.com/user-attachments/assets/fbd7a75c-dceb-4987-b11e-2d267d0b0f6e" />
+
 
 # Excel File Example:
 1. Portfolio sheet (First Excel sheet)
