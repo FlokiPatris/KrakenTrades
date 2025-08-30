@@ -142,12 +142,9 @@ Daily email service (Using security repository variables set on Github):
 
 # Excel File Example:
 1. Portfolio sheet (First Excel sheet)
-<img width="1536" height="1024" alt="blur the prices for readme" src="https://github.com/user-attachments/assets/bd057760-bda0-44e0-a9aa-1f84fa4e5d28" />
 
 2. Asset ROI sheet (Second Excel sheet)
-<img width="1054" height="383" alt="asset roi sheet" src="https://github.com/user-attachments/assets/4cbf0fca-5d00-4f4f-a0c5-1be864c8e09d" />
 
 3. BTC/EUR Sheet (One of the trade pair sheets)
-<img width="1065" height="328" alt="bitcoin sheet" src="https://github.com/user-attachments/assets/df35b3a8-8013-454e-912c-6c36ec4a227a" />
 ---
 
