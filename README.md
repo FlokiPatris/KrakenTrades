@@ -137,7 +137,7 @@ Leak found (Security pipeline in action):
 <img width="924" height="449" alt="image" src="https://github.com/user-attachments/assets/9f26d18a-fb6a-4707-bad0-b65a04b49fbe" />
 
 Daily email service (Using security repository variables set on Github):
-<img width="1309" height="78" alt="image" src="https://github.com/user-attachments/assets/fbd7a75c-dceb-4987-b11e-2d267d0b0f6e" />
+<img width="1317" height="119" alt="image" src="https://github.com/user-attachments/assets/dc4c4ad3-abd6-47a8-9784-b88184fe6175" />
 
 
 # Excel File Example:
