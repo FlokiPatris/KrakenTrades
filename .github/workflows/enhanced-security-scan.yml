@@ -12,10 +12,6 @@ name: "🔐 AppSec — Security, Secrets & Shell Script Scan"
 on:
   pull_request:
     branches: ["**"]
-    paths:
-      - "**.sh"
-      - ".ci/bin/**"
-      - "Makefile"
   workflow_dispatch:     # Manual trigger option
 
 # ------------------------
