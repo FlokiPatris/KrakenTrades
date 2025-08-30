@@ -2,22 +2,22 @@
 
 **Quick links**
 - [What is this?](#what-is-this)
-- [Examples PNGs](#examples)
 - [For recruiters (summary)](#for-recruiters-summary)
+- [Github](#github)
+- [Example Excel PNGs](#examples)
+- [CI & Security](#ci--security)
 - [Run locally (detailed)](#run-locally-detailed)
 - [Run with Docker / Compose](#run-with-docker--compose)
-- [CI & Security](#ci--security)
 - [Repository layout](#repository-layout)
 - [Environment variables / .env](#environment-variables--env)
 - [How it works (high level)](#how-it-works-high-level)
-- [For developers (technical notes)](#for-developers-technical-notes)
 - [License & contact](#license--contact)
 
 # What is this?
 KrakenTrades is a pipeline that ingests Kraken trade statement PDFs, parses trade records, builds Pandas DataFrames and writes a styled Excel report suitable for downstream analysis or archival. It is designed to be CI/CD friendly, secure by default (SARIF, secret scanning, hardened file permissions) and production-oriented (Docker, DB integration).
 
 # For recruiters (summary)
-- Purpose: Convert Kraken PDF trade statements into a clean, styled Excel summary.
+- Purpose: Convert Kraken PDF trade statements into a clean, styled Excel summary with additional data analysis.
 - Languages / tech: Python 3.11+, Pandas, pdfplumber, openpyxl; Docker; GitHub Actions for CI.
 - Production features: tests (pytest), Docker image + compose, appsec scans (Bandit, ShellCheck, pip-audit, gitleaks, Trivy), SARIF conversion for security tooling.
 - What to look for: `main.py` (pipeline entry), `src/file_management` (parsers, writers, stylers), `tests/` (e2e + integration).
@@ -121,38 +121,20 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
 
 3. AppSec pipeline (Makefile + `.ci`) runs static checks and converts results to SARIF for consistent reporting.
 
-# For developers (technical notes)
-- Code entry points:
-  - Parsing: `src/file_management/pdf_parser.py`
-  - Data shaping: `src/file_management/trade_report_data.py`
-  - Excel export/styling: `src/file_management/excel_writer.py`, `src/file_management/excel_styler.py`
-  - DB connector: `src/kraken_db/db_connector.py`
-  - Logger: `src/kraken_core/custom_logger.py`
-
-- Tests:
-  - `tests/e2e/test_excel_generate.py` runs the full pipeline (remember to seed `downloads/` with an example PDF or mock).
-  - Integration tests cover DB config & queries.
-
-- Adding a new parser or exchange:
-  - Add parsing logic under `src/file_management/` and wire into `main.py`.
-  - Add test fixtures in `tests/` and update `Makefile` test targets if needed.
-
-- Coding style:
-  - Use type hints and dataclasses where appropriate (repository already uses pydantic/dataclasses patterns).
-  - Keep functions small and testable; prefer pure functions for parsing + transformation logic.
-
 # License & contact
 - Author / Contact:
   - Floki Patris
-    
+
+
 # Github:
 All running PR pipelines:
+<img width="1892" height="235" alt="image" src="https://github.com/user-attachments/assets/1b7fda01-5f60-438b-a4be-cbf86759fd85" />
 
 Expanded PR checks:
-<img width="1917" height="912" alt="image" src="https://github.com/user-attachments/assets/d5a365a4-2d33-45a2-b202-dceca0085d7e" />
+<img width="1908" height="899" alt="image" src="https://github.com/user-attachments/assets/0f1bbce4-38ba-45fb-890e-476094d24c7f" />
 
 Leak found (Security pipeline in action):
-
+<img width="924" height="449" alt="image" src="https://github.com/user-attachments/assets/9f26d18a-fb6a-4707-bad0-b65a04b49fbe" />
 
 
 # Excel File Example:
