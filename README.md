@@ -144,7 +144,7 @@ Daily email service (Using security repository variables set on Github - these v
 
 # Excel File Example:
 1. Portfolio sheet (First Excel sheet)
-<img width="645" height="275" alt="image" src="https://github.com/user-attachments/assets/b9945950-fda1-47e8-8fcd-7923b9d3ddc7" />
+<img width="628" height="267" alt="image" src="https://github.com/user-attachments/assets/0ac6c19b-fd72-4059-bd9c-299643d1e34a" />
 
 2. Asset ROI sheet (Second Excel sheet)
 <img width="1139" height="239" alt="image" src="https://github.com/user-attachments/assets/3e3bea21-620f-4ad8-bfc2-f10569b1a2b4" />
