@@ -126,9 +126,13 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
 # License & contact
 - Author / Contact:
   - Filip Kotras
-    
+
 ---
 ---
+---
+
+# PNGs:
+
 ---
 
 # Github:
@@ -144,8 +148,6 @@ Leak found (Security pipeline in action):
 Daily email service (Using security repository variables set on Github - these vars are not visible when editing, only meant for storing):
 <img width="1317" height="119" alt="image" src="https://github.com/user-attachments/assets/dc4c4ad3-abd6-47a8-9784-b88184fe6175" />
 
----
----
 ---
 
 # Excel File Example:
