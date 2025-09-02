@@ -1,9 +1,9 @@
-# KrakenTrades — Kraken PDF → Styled Excel Pipeline
+# KrakenTrades — Analysis across wallets
 
 **Quick links**
 - [What is this?](#what-is-this)
 - [For recruiters (summary)](#for-recruiters-summary)
-- [Github](#github)
+- [Github showcase:](#github)
 - [Excel File Example:](#excel-file-example)
 - [CI & Security](#ci--security)
 - [Run locally (detailed)](#run-locally-detailed)
@@ -14,7 +14,8 @@
 - [License & contact](#license--contact)
 
 # What is this?
-KrakenTrades is a pipeline that ingests Kraken trade statement PDFs, parses trade records, builds Pandas DataFrames and writes a styled Excel report suitable for downstream analysis or archival. It is designed to be CI/CD friendly, secure by default (SARIF, secret scanning, hardened file permissions) and production-oriented (Docker, DB integration).
+KrakenTrades is a pipeline that ingests Kraken trade statement PDFs, parses trade records, builds Pandas DataFrames and writes a styled Excel report suitable for downstream analysis or archival. 
+It is designed to be CI/CD friendly, secure by default (SARIF, secret scanning, hardened file permissions) and production-oriented (Docker, DB integration).
 
 # For recruiters (summary)
 - Purpose: Convert Kraken PDF trade statements into a clean, styled Excel summary with additional data analysis.
@@ -69,7 +70,8 @@ Security tooling is invoked via Makefile targets:
     make gitleaks
     make trivy
 
-SARIF conversion helper: `.ci/bin/sarif_convert.py` — converts tool outputs (Bandit, pip-audit, ShellCheck) into SARIF 2.1.0 and writes files with restrictive permissions (0o600). CI uploads SARIF artifacts only when configured to do so (see `UPLOAD_SARIF` gating in workflows).
+SARIF conversion helper: `.ci/bin/sarif_convert.py` — converts tool outputs (Bandit, pip-audit, ShellCheck) into SARIF 2.1.0 and writes files with restrictive permissions (0o600).
+CI uploads SARIF artifacts only when configured to do so (see `UPLOAD_SARIF` gating in workflows).
 
 # Repository layout
 - `main.py` — pipeline entry point.
@@ -123,7 +125,7 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
 
 # License & contact
 - Author / Contact:
-  - Floki Patris
+  - Filip Kotras
 
 
 # Github:
@@ -136,15 +138,27 @@ Expanded PR checks:
 Leak found (Security pipeline in action):
 <img width="924" height="449" alt="image" src="https://github.com/user-attachments/assets/9f26d18a-fb6a-4707-bad0-b65a04b49fbe" />
 
-Daily email service (Using security repository variables set on Github):
+Daily email service (Using security repository variables set on Github - these vars are not visible when editing, only meant for storing):
 <img width="1317" height="119" alt="image" src="https://github.com/user-attachments/assets/dc4c4ad3-abd6-47a8-9784-b88184fe6175" />
 
 
 # Excel File Example:
 1. Portfolio sheet (First Excel sheet)
+<img width="645" height="275" alt="image" src="https://github.com/user-attachments/assets/b9945950-fda1-47e8-8fcd-7923b9d3ddc7" />
 
 2. Asset ROI sheet (Second Excel sheet)
+<img width="1139" height="239" alt="image" src="https://github.com/user-attachments/assets/3e3bea21-620f-4ad8-bfc2-f10569b1a2b4" />
 
-3. BTC/EUR Sheet (One of the trade pair sheets)
+3. BEAM/EUR Sheet (1st trade pair sheet)
+<img width="1377" height="362" alt="image" src="https://github.com/user-attachments/assets/761b9b71-e3e7-4dc0-a6df-8ed32f29196b" />
+
+4. BTC/EUR Sheet (2nd trade pair sheet)
+<img width="1324" height="335" alt="image" src="https://github.com/user-attachments/assets/7b6a205b-19e4-4bf2-88ad-792be8911d61" />
+
+5. PYTH/EUR Sheet (3rd trade pair sheet)
+<img width="1395" height="382" alt="image" src="https://github.com/user-attachments/assets/f0a3340c-c321-471c-9fb0-bb549074bc3f" />
+
+5. RENDER/EUR Sheet (4th trade pair sheet)
+<img width="1326" height="355" alt="image" src="https://github.com/user-attachments/assets/43970439-db64-4faf-9520-92fdef4d9a32" />
 ---
 
