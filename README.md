@@ -128,6 +128,8 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
   - Filip Kotras
 
 
+
+
 # Github:
 All running PR pipelines:
 <img width="1892" height="235" alt="image" src="https://github.com/user-attachments/assets/1b7fda01-5f60-438b-a4be-cbf86759fd85" />
@@ -140,6 +142,8 @@ Leak found (Security pipeline in action):
 
 Daily email service (Using security repository variables set on Github - these vars are not visible when editing, only meant for storing):
 <img width="1317" height="119" alt="image" src="https://github.com/user-attachments/assets/dc4c4ad3-abd6-47a8-9784-b88184fe6175" />
+
+
 
 
 # Excel File Example:
