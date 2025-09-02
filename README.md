@@ -158,5 +158,5 @@ Daily email service (Using security repository variables set on Github - these v
 5. PYTH/EUR Sheet (3rd trade pair sheet)
 <img width="1395" height="382" alt="image" src="https://github.com/user-attachments/assets/f0a3340c-c321-471c-9fb0-bb549074bc3f" />
 
-5. RENDER/EUR Sheet (4th trade pair sheet)
+6. RENDER/EUR Sheet (4th trade pair sheet)
 <img width="1326" height="355" alt="image" src="https://github.com/user-attachments/assets/43970439-db64-4faf-9520-92fdef4d9a32" />
