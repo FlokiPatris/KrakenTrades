@@ -3,8 +3,8 @@
 **Quick links**
 - [What is this?](#what-is-this)
 - [For recruiters (summary)](#for-recruiters-summary):
-  - [Github showcase:](#github)
-  - [Excel File Example:](#excel-file-example)
+ - [Github showcase:](#github)
+ - [Excel File Example:](#excel-file-example)
 - [CI & Security](#ci--security)
 - [Run locally (detailed)](#run-locally-detailed)
 - [Run with Docker / Compose](#run-with-docker--compose)
