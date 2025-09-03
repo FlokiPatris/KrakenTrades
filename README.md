@@ -3,8 +3,8 @@
 **Quick links**
 - [What is this?](#what-is-this)
 - [For recruiters (summary)](#for-recruiters-summary):
-- [Github showcase:](#github)
-- [Excel File Example:](#excel-file-example)
+  - [Github showcase:](#github)
+  - [Excel File Example:](#excel-file-example)
 - [CI & Security](#ci--security)
 - [Run locally (detailed)](#run-locally-detailed)
 - [Run with Docker / Compose](#run-with-docker--compose)
@@ -90,7 +90,7 @@ CI uploads SARIF artifacts only when configured to do so (see `UPLOAD_SARIF` gat
 - `tests/` — pytest tests: smoke, integration, e2e.
 - `uploads/` and `downloads/` — runtime folders (configured via PathsConfig).
 
-# Environment variables / .env (recommended)
+# Environment variables / .env
 Below is a compact list of env variables the code refers to (set them in `.env` locally and as GitHub Secrets in CI):
 
 - `UPLOADS_DIR` — default `uploads`
