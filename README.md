@@ -17,11 +17,11 @@
 KrakenTrades is a pipeline that ingests Kraken trade statement PDFs, parses trade records, builds Pandas DataFrames and writes a styled Excel report suitable for downstream analysis or archival. 
 It is designed to be CI/CD friendly, secure by default (SARIF, secret scanning, hardened file permissions) and production-oriented (Docker, DB integration).
 
-# For recruiters (summary)
-- Purpose: Convert Kraken PDF trade statements into a clean, styled Excel summary with additional data analysis.
-- Languages / tech: Python 3.11+, Pandas, pdfplumber, openpyxl; Docker; GitHub Actions for CI.
-- Production features: tests (pytest), Docker image + compose, appsec scans (Bandit, ShellCheck, pip-audit, gitleaks, Trivy), SARIF conversion for security tooling.
-- What to look for: `main.py` (pipeline entry), `src/file_management` (parsers, writers, stylers), `tests/` (e2e + integration).
+# Skills & Technologies Demonstrated
+- **Purpose**: Convert Kraken PDF trade statements into a clean, styled Excel summary with additional data analysis
+- **Languages / Tech**: Python 3.11+, Pandas, pdfplumber, openpyxl; Docker; GitHub Actions (CI/CD)
+- **Production Features**: pytest tests, Docker image + Compose, appsec scans (Bandit, ShellCheck, pip-audit, gitleaks, Trivy), SARIF conversion for security tooling
+- **Code Highlights**: `main.py` (pipeline entry), `src/file_management` (parsers, writers, stylers), `tests/` (integration + e2e)
 
 # Run locally (detailed)
 ## Prepare repo
@@ -130,33 +130,33 @@ Security note: never commit secrets. Use GitHub Actions Secrets and `.gitignore`
 ---
 
 # Github:
-All running PR pipelines:
+All running PR pipelines (Ensuring all changes pass automated checks before merging):  
 <img width="1892" height="235" alt="image" src="https://github.com/user-attachments/assets/1b7fda01-5f60-438b-a4be-cbf86759fd85" />
 
-Expanded PR checks:
+Expanded PR checks (Detailed pipeline view with validation stages):
 <img width="1908" height="899" alt="image" src="https://github.com/user-attachments/assets/0f1bbce4-38ba-45fb-890e-476094d24c7f" />
 
-Leak found (Security pipeline in action):
+Leak found - Security pipeline in action (Automated detection in commits):
 <img width="924" height="449" alt="image" src="https://github.com/user-attachments/assets/9f26d18a-fb6a-4707-bad0-b65a04b49fbe" />
 
-Daily email service (Using security repository variables set on Github - these vars are not visible when editing, only meant for storing):
+Daily email service (Using security repository variables set on Github to store sensitive email credential):
 <img width="1317" height="119" alt="image" src="https://github.com/user-attachments/assets/dc4c4ad3-abd6-47a8-9784-b88184fe6175" />
 
 # Excel File Example:
-1. Portfolio sheet (First Excel sheet)
+1. Portfolio Overview (First Excel sheet)
 <img width="628" height="267" alt="image" src="https://github.com/user-attachments/assets/0ac6c19b-fd72-4059-bd9c-299643d1e34a" />
 
-2. Asset ROI sheet (Second Excel sheet)
+2. Asset ROI Breakdown (Second Excel sheet)
 <img width="1139" height="239" alt="image" src="https://github.com/user-attachments/assets/3e3bea21-620f-4ad8-bfc2-f10569b1a2b4" />
 
-3. BEAM/EUR Sheet (1st trade pair sheet)
+3. Trade Pair Example — BEAM/EUR (1st trade pair sheet)
 <img width="1377" height="362" alt="image" src="https://github.com/user-attachments/assets/761b9b71-e3e7-4dc0-a6df-8ed32f29196b" />
 
-4. BTC/EUR Sheet (2nd trade pair sheet)
+4. Trade Pair Example — BTC/EUR (2nd trade pair sheet)  
 <img width="1324" height="335" alt="image" src="https://github.com/user-attachments/assets/7b6a205b-19e4-4bf2-88ad-792be8911d61" />
 
-5. PYTH/EUR Sheet (3rd trade pair sheet)
+5. Trade Pair Example — PYTH/EUR (3rd trade pair sheet)
 <img width="1395" height="382" alt="image" src="https://github.com/user-attachments/assets/f0a3340c-c321-471c-9fb0-bb549074bc3f" />
 
-6. RENDER/EUR Sheet (4th trade pair sheet)
+6. Trade Pair Example — RENDER/EUR (4th trade pair sheet)
 <img width="1326" height="355" alt="image" src="https://github.com/user-attachments/assets/43970439-db64-4faf-9520-92fdef4d9a32" />
