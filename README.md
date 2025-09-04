@@ -2,7 +2,7 @@
 
 **Quick links**
 - [What is this?](#what-is-this)
-- [For recruiters (summary)](#for-recruiters-summary):
+- [Skills & Technologies Demonstrated](#skills--technologies-demonstrated)
   - [Github showcase:](#github)
   - [Excel File Example:](#excel-file-example)
 - [CI & Security](#ci--security)
