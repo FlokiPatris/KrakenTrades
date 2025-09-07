@@ -153,7 +153,7 @@ pre-commit:
 # ==========================================================
 test: clean
 	@echo "→ Running pytest with coverage"
-	@$(PYTHON) -m pytest tests/ \
+	@PYTEST_RUNNING=1 $(PYTHON) -m pytest tests/ \
 		--cov=. \
 		--cov-report=term-missing \
 		--cov-report=xml \
@@ -163,7 +163,7 @@ test: clean
 # -------------------- Debug target -----------------------
 test-debug: clean
 	@echo "→ Running pytest in debug mode"
-	@$(PYTHON) -m pytest -s \
+	@PYTEST_RUNNING=1 $(PYTHON) -m pytest -s \
 		-o log_cli_level=INFO \
 		tests/ \
 		--cov=. \

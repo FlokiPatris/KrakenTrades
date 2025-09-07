@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import errno
+import os
 from typing import Optional, Final
 
 from kraken_core import FolderType, PathsConfig, custom_logger
@@ -44,9 +45,14 @@ class FileHelper:
         return cls._instance
 
     def __post_init__(self) -> None:
-        """Ensure all key folders exist at initialization."""
-        for folder in [self.reports_dir, self.downloads_dir, self.uploads_dir]:
+        """Ensure key folders exist at initialization."""
+        # Always create downloads and uploads
+        for folder in [self.downloads_dir, self.uploads_dir]:
             self.ensure_dir(folder)
+
+        # Create reports_dir only if running pytest
+        if os.environ.get("PYTEST_RUNNING") == "1":
+            self.ensure_dir(self.reports_dir)
 
     # ------------------------------------------------------------------------
     # Directory Operations
@@ -163,4 +169,5 @@ class FileHelper:
 # =============================================================================
 # 🌟 Global Singleton Instance
 # =============================================================================
+# Normal usage: creates folders as usual
 file_helper = FileHelper()
