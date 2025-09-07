@@ -9,7 +9,6 @@ Main pipeline for processing Kraken trade PDFs into styled Excel reports.
 - Fully Docker and CI/CD friendly.
 """
 
-from pathlib import Path
 import sys
 
 from file_management import (
@@ -18,35 +17,38 @@ from file_management import (
     style_excel,
     write_excel,
 )
-from kraken_core import PathsConfig
 from kraken_core import custom_logger
+from helpers import file_helper
 
 
 def main() -> None:
     """Run the full Kraken trade PDF → Excel."""
     try:
-        # Resolve input PDF path
-        input_pdf: Path = PathsConfig.KRAKEN_TRADES_PDF
-        if not input_pdf.exists():
-            custom_logger.error("❌ Input PDF does not exist: %s", input_pdf)
+        if not file_helper.KRAKEN_TRADES_PDF.exists():
+            custom_logger.error(
+                "❌ Input PDF does not exist: %s", file_helper.KRAKEN_TRADES_PDF
+            )
             sys.exit(1)
 
-        custom_logger.info("📄 Extracting trade records from PDF: %s", input_pdf)
-        extracted_records = extract_kraken_trade_records_from_pdf(input_pdf)
+        custom_logger.info(
+            "📄 Extracting trade records from PDF: %s", file_helper.KRAKEN_TRADES_PDF
+        )
+        extracted_records = extract_kraken_trade_records_from_pdf(
+            file_helper.KRAKEN_TRADES_PDF
+        )
 
         custom_logger.info("📊 Building DataFrames from extracted records")
         formatted_dfs = build_trade_dataframe(extracted_records)
 
-        # Determine output folder and final Excel path
-        output_file: Path = (
-            PathsConfig.UPLOADS_DIR / PathsConfig.PARSED_TRADES_EXCEL.name
+        custom_logger.info(
+            "💾 Writing Excel report to: %s", file_helper.PARSED_TRADES_EXCEL
         )
+        write_excel(formatted_dfs, file_helper.PARSED_TRADES_EXCEL)
+        style_excel(file_helper.PARSED_TRADES_EXCEL)
 
-        custom_logger.info("💾 Writing Excel report to: %s", output_file)
-        write_excel(formatted_dfs, output_file)
-        style_excel(output_file)
-
-        custom_logger.info("✅ Report successfully written: %s", output_file)
+        custom_logger.info(
+            "✅ Report successfully written: %s", file_helper.PARSED_TRADES_EXCEL
+        )
 
     except Exception as exc:
         custom_logger.exception("🔥 Pipeline failed: %s", exc)

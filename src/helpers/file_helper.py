@@ -25,6 +25,8 @@ TREE_CMD_TIMEOUT: Final[int] = 5  # seconds
 class FileHelper:
     """Singleton utility for safe file/folder operations and I/O."""
 
+    PARSED_TRADES_EXCEL: Path = PathsConfig.PARSED_TRADES_EXCEL
+    KRAKEN_TRADES_PDF: Path = PathsConfig.KRAKEN_TRADES_PDF
     downloads_dir: Path = PathsConfig.DOWNLOADS_DIR
     uploads_dir: Path = PathsConfig.UPLOADS_DIR
     reports_dir: Path = PathsConfig.REPORTS_DIR
