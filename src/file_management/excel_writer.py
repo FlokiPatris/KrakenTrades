@@ -117,6 +117,14 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             sell_total = sells[TradeColumn.TRANSACTION_PRICE.value].sum()
 
             remaining_volume = buy_volume - sell_volume
+
+            if remaining_volume < 0.02 * buy_volume:
+                custom_logger.info(
+                    f"Remaining volume for pair: {pair} is less than 2% of bought volume. "
+                    f"Adjusting to zero - deducting fees for transactions between cold and hot wallet."
+                )
+                remaining_volume = 0
+
             cost = float(buy_total + buy_fee)
             current_value = remaining_volume * market_price
             potential_value = buy_volume * market_price
