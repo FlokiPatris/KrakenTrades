@@ -120,8 +120,7 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
             if remaining_volume < 0.02 * buy_volume:
                 custom_logger.info(
-                    f"Remaining volume for pair: {pair} is less than 2% of bought volume. "
-                    f"Adjusting to zero - deducting fees for transactions between cold and hot wallet."
+                    f"Remaining volume for pair: {pair} is less than 2% of bought volume. Adjusting to zero."
                 )
                 remaining_volume = 0
 
