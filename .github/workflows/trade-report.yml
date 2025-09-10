@@ -1,8 +1,4 @@
 # 📊 Trades Report (Daily & On-Demand)
-# - Single source of truth: Docker container generates report
-# - CI & schedule: runs on pull requests or daily cron
-# - Secrets-safe: credentials never echoed
-# - DRY: centralized env vars for paths, files, and SMTP
 
 name: "📊 Trades Report"
 
@@ -15,6 +11,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 6 * * *"  # Daily at 06:00 UTC
+    - cron: "0 18 * * *" # Daily at 18:00 UTC
 
 env:
   UPLOAD_DIR: uploads  # CI-relative uploads folder

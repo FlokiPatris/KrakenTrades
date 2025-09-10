@@ -89,10 +89,13 @@ class PathsConfig:
 
     # --- Files --- #
     KRAKEN_TRADES_PDF: Path = Path(
-        get_env_var("KRAKEN_TRADES_PDF", "downloads/trades.pdf")
+        get_env_var("KRAKEN_TRADES_PDF", f"{FolderType.DOWNLOADS.value}/trades.pdf")
     )
     PARSED_TRADES_EXCEL: Path = Path(
-        get_env_var("PARSED_TRADES_EXCEL", "uploads/kraken_trade_summary.xlsx")
+        get_env_var(
+            "PARSED_TRADES_EXCEL",
+            f"{FolderType.UPLOADS.value}/kraken_trade_summary.xlsx",
+        )
     )
 
     # --- Folders --- #
