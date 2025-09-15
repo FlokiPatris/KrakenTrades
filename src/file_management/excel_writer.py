@@ -69,7 +69,7 @@ def export_roi_table(
             "unrealized_value": "Unrealized Value (€)",
             "total_value": "Total Value (€)",
             "roi": "ROI (%)",
-            "potential_roi": "Potential ROI (%)",
+            "if_all_sold_now_roi": "If All Sold Now ROI (%)",
         },
         inplace=True,
     )
@@ -120,7 +120,7 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
             if remaining_volume < 0.02 * buy_volume:
                 custom_logger.info(
-                    f"Remaining volume for pair: {pair} is less than 2% of bought volume. Adjusting to zero."
+                    "Remaining volume is less than 2% of bought volume. Adjusting to zero."
                 )
                 remaining_volume = 0
 
@@ -146,7 +146,7 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
                     unrealized_value=current_value,
                     total_value=total_value,
                     roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_8),
-                    potential_roi=round(
+                    if_all_sold_now_roi=round(
                         potential_roi * 100, FormatRules.DECIMAL_PLACES_8
                     ),
                 )

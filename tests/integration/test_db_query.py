@@ -3,7 +3,7 @@
 # =============================================================================
 import pytest
 from kraken_core import PostgresConfig, custom_logger
-from kraken_db import connect_db
+from db import connect_db
 
 
 # =============================================================================
