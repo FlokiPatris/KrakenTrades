@@ -6,8 +6,8 @@
 # - Modular, testable, CI/CD friendly
 # =============================================================================
 
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List
 
 from kraken_core import PathsConfig, custom_logger

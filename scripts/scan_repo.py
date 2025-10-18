@@ -10,12 +10,13 @@ This module performs a structured scan of a repository:
 """
 
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Optional
 
-from kraken_core import custom_logger, RepoScanConfig, FolderType
 from helpers import file_helper
+from kraken_core import FolderType, RepoScanConfig, custom_logger
 
 
 # --------------------------------------------------------------------

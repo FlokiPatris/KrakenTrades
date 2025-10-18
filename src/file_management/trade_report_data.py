@@ -1,15 +1,12 @@
 # =============================================================================
 # 📊 Trade DataFrame / Reporting Module
 # =============================================================================
-from typing import Optional, Any
+from typing import Any, Optional
+
 import pandas as pd
 
-from kraken_core import (
-    TradeBreakdownSnapshot,
-    TradeColumn,
-    custom_logger,
-)
-from market import manual_onyx_injection, manual_litecoin_injection
+from kraken_core import TradeBreakdownSnapshot, TradeColumn, custom_logger
+from market import manual_litecoin_injection, manual_onyx_injection
 
 
 # -------------------------------------------------------------------------

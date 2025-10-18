@@ -4,12 +4,13 @@ from __future__ import annotations
 # 📦 Imports
 # =============================================================================
 from pathlib import Path
-from typing import List, Iterable
+from typing import Iterable, List
+
 from openpyxl import Workbook, load_workbook
-from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
-from openpyxl.utils import get_column_letter
 from openpyxl.styles import PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 
 from kraken_core import ExcelStyling, custom_logger
 
@@ -109,34 +110,64 @@ def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
         except ValueError:
             custom_logger.error("❌ ROI (%) column not found in Asset ROI sheet")
             return
-        pos_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value >= 0]
-        neg_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value < 0]
+        pos_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value >= 0
+        ]
+        neg_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value < 0
+        ]
 
         ws.delete_rows(2, ws.max_row)
 
         if pos_rows:
-            _insert_roi_section(ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2)
+            _insert_roi_section(
+                ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2
+            )
         if neg_rows:
-            _insert_roi_section(ws, "🔻 Negative ROI Assets 🔻", ExcelStyling.RED_FILL, neg_rows, 3 + len(pos_rows))
+            _insert_roi_section(
+                ws,
+                "🔻 Negative ROI Assets 🔻",
+                ExcelStyling.RED_FILL,
+                neg_rows,
+                3 + len(pos_rows),
+            )
 
     elif group_by == "remaining_volume":
         try:
             col_idx = headers.index("Remaining Volume")
         except ValueError:
-            custom_logger.error("❌ Remaining Volume column not found in Asset ROI sheet")
+            custom_logger.error(
+                "❌ Remaining Volume column not found in Asset ROI sheet"
+            )
             return
         unsold_rows = [r for r in rows if r[col_idx].value and r[col_idx].value > 0]
-        sold_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value <= 0]
+        sold_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value <= 0
+        ]
 
         ws.delete_rows(2, ws.max_row)
 
         if unsold_rows:
-            _insert_roi_section(ws, "📦 Unsold Assets (Still Holding)", ExcelStyling.GREEN_FILL, unsold_rows, 2)
+            _insert_roi_section(
+                ws,
+                "📦 Unsold Assets (Still Holding)",
+                ExcelStyling.GREEN_FILL,
+                unsold_rows,
+                2,
+            )
         if sold_rows:
-            _insert_roi_section(ws, "💰 Sold Assets (Closed Positions)", ExcelStyling.RED_FILL, sold_rows, 3 + len(unsold_rows))
+            _insert_roi_section(
+                ws,
+                "💰 Sold Assets (Closed Positions)",
+                ExcelStyling.RED_FILL,
+                sold_rows,
+                3 + len(unsold_rows),
+            )
 
     else:
-        custom_logger.warning(f"⚠️ Unknown group_by value '{group_by}', skipping grouping.")
+        custom_logger.warning(
+            f"⚠️ Unknown group_by value '{group_by}', skipping grouping."
+        )
 
 
 def _style_token_sheet(ws: Worksheet) -> None:

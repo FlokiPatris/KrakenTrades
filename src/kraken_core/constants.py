@@ -2,14 +2,17 @@
 # 🧰 Environment & Config
 # --------------------------------------------------------------------
 from __future__ import annotations
+
 import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet
+
 from dotenv import load_dotenv
 from openpyxl.styles import Alignment, Font, PatternFill
-from .enums import TradeColumn, FolderType
+
+from .enums import FolderType, TradeColumn
 
 load_dotenv()  # Load environment variables from .env file
 

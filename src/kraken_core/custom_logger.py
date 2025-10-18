@@ -1,9 +1,9 @@
 # =============================================================================
 # 📝 Auto Module Logger
 # =============================================================================
+import inspect
 import logging
 import sys
-import inspect
 from typing import Final
 
 # Log message format and timestamp format

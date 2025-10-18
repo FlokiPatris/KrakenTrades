@@ -2,17 +2,15 @@
 # 💾 Trade Excel / Export Module
 # =============================================================================
 from pathlib import Path
+
 import pandas as pd
 
-from kraken_core import (
-    FormatRules,
-    MainSummaryMetrics,
-    TradeBreakdownSnapshot,
-    TradeColumn,
-    custom_logger,
-)
-from .trade_report_data import generate_trade_report_sheet, apply_manual_injections
+from kraken_core import (FormatRules, MainSummaryMetrics,
+                         TradeBreakdownSnapshot, TradeColumn, custom_logger)
 from market import fetch_market_price
+
+from .trade_report_data import (apply_manual_injections,
+                                generate_trade_report_sheet)
 
 
 # -------------------------------------------------------------------------
@@ -63,7 +61,7 @@ def export_roi_table(
         "roi", ascending=True
     )
     roi_df.rename(
-        columns={ #TODO: use proper currency ! it does not have to be EUR all the time.
+        columns={  # TODO: use proper currency ! it does not have to be EUR all the time.
             "bought_volume": "Bought Volume",
             "sold_volume": "Sold Volume",
             "remaining_volume": "Remaining Volume",

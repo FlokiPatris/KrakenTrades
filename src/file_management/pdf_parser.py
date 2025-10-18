@@ -2,18 +2,13 @@
 # 🧾 Kraken PDF Trade Parser
 # --------------------------------------------------------------------
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 import pandas as pd
 import pdfplumber
 
-from kraken_core import (
-    FormatRules,
-    RawColumn,
-    TradeColumn,
-    TradeRegex,
-    custom_logger,
-)
+from kraken_core import (FormatRules, RawColumn, TradeColumn, TradeRegex,
+                         custom_logger)
 
 
 # --------------------------------------------------------------------
