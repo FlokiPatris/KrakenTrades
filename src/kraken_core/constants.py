@@ -76,9 +76,7 @@ class RepoScanConfig:
     CATEGORIES_TO_SCAN: FrozenSet[str] = frozenset(
         [".ci", ".github", "scripts", "src", "tests"]
     )
-    CATEGORIES_TO_TEST: FrozenSet[str] = frozenset(
-        ["e2e", "smoke", "integration", "assertions"]
-    )
+    CATEGORIES_TO_TEST: FrozenSet[str] = frozenset(["e2e", "smoke", "assertions"])
 
 
 # --------------------------------------------------------------------

@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-from oauth2client.service_account import ServiceAccountCredentials  # type:ignore
+from oauth2client.service_account import \
+    ServiceAccountCredentials  # type:ignore
 from pydrive2.auth import GoogleAuth  # type:ignore
 from pydrive2.drive import GoogleDrive  # type:ignore
 
