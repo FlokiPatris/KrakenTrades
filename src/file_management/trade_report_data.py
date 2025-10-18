@@ -26,7 +26,6 @@ def generate_trade_report_block(title: str, values: dict[str, Any]) -> pd.DataFr
 def create_summary_block(snapshot: TradeBreakdownSnapshot) -> list[pd.DataFrame]:
     """
     Generates all three standard summary blocks for a trade snapshot:
-    - AVERAGE BUY PRICE (incl. fees)
     - IF ALL SOLD NOW
     - ALREADY SOLD
     - IF REST SOLD NOW
@@ -36,12 +35,6 @@ def create_summary_block(snapshot: TradeBreakdownSnapshot) -> list[pd.DataFrame]
         return f"{val} {currency}" if val is not None else f"N/A {currency}"
 
     return [
-        generate_trade_report_block(
-            "AVERAGE BUY PRICE (incl. fees):",
-            {
-                TradeColumn.TRADE_PRICE.value: f"{compute_avg_buy_price(snapshot.buys)} {snapshot.currency}",
-            },
-        ),
         generate_trade_report_block(
             "IF ALL SOLD NOW:",
             {
@@ -108,35 +101,3 @@ def apply_manual_injections(pair: str, buys: pd.DataFrame) -> pd.DataFrame:
     elif pair == "LTC/EUR":
         return manual_litecoin_injection(buys)
     return buys
-
-
-# -------------------------------------------------------------------------
-# 🚀 Data analysis helper functions
-# -------------------------------------------------------------------------
-def compute_avg_buy_price(buys: pd.DataFrame) -> float:
-    """
-    Computes weighted average buy price per token including fees rounded to 8 decimal places.
-
-    Args:
-        buys: DataFrame with columns:
-            - 'Trade Price' (price per unit)
-            - 'Transferred Volume' (amount bought)
-            - 'Fee' (fee in same currency as Trade Price)
-
-    Returns:
-        Weighted average price per token (float)
-    """
-    if buys.empty:
-        return 0.0
-
-    # Calculate total cost per trade including fee
-    total_costs = buys["Trade Price"] * buys["Transferred Volume"] + buys["Fee"]
-
-    # Sum of volumes
-    total_volume = buys["Transferred Volume"].sum()
-
-    if total_volume == 0:
-        return 0.0
-
-    rounded_avg_buy_price = round(total_costs.sum() / total_volume, 8)
-    return rounded_avg_buy_price

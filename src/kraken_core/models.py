@@ -18,6 +18,12 @@ class MainSummaryMetrics:
     Attributes:
         token: Quote token
         pair: Trading pair
+        bought_volume: Total volume purchased
+        sold_volume: Total volume sold
+        remaining_volume: Volume still held
+        average_buy_price: Weighted average buy price
+        average_sell_price: Weighted average sell price (realized)
+        market_price: Current market price
         total_cost: Total cost of purchases
         realized_sells: Total value from sells executed
         unrealized_value: Current value of remaining holdings
@@ -28,13 +34,18 @@ class MainSummaryMetrics:
 
     token: str
     pair: str
+    bought_volume: float
+    sold_volume: float
+    remaining_volume: float
+    average_buy_price: float
+    average_sell_price: float
+    market_price: Optional[float]
     total_cost: float
     realized_sells: float
     unrealized_value: float
     total_value: float
     roi: float
     if_all_sold_now_roi: float
-
 
 # -----------------------------------------------------------------------------
 # 📉 Trade Breakdown Snapshot
