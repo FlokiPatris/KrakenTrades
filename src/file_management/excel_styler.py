@@ -21,7 +21,7 @@ from kraken_core import ExcelStyling, custom_logger
 def _auto_adjust_columns(ws: Worksheet) -> None:
     """Auto-adjust column widths with a max width limit from ExcelStyling."""
     for col in ws.columns:
-        max_width: int = max(len(str(cell.value) or "") for cell in col) + 4
+        max_width: int = max(len(str(cell.value) or "") for cell in col) + 1
 
         col_index: int | None = col[0].column
         if col_index is None:
