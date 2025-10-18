@@ -11,9 +11,12 @@ Main pipeline for processing Kraken trade PDFs into styled Excel reports.
 
 import sys
 
-from file_management import (build_trade_dataframe,
-                             extract_kraken_trade_records_from_pdf,
-                             style_excel, write_excel)
+from file_management import (
+    build_trade_dataframe,
+    extract_kraken_trade_records_from_pdf,
+    style_excel,
+    write_excel,
+)
 from helpers import file_helper
 from kraken_core import custom_logger
 

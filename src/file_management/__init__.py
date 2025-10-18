@@ -1,9 +1,7 @@
 from .excel_styler import style_excel
 from .excel_writer import write_excel
-from .pdf_parser import (build_trade_dataframe,
-                         extract_kraken_trade_records_from_pdf)
-from .trade_report_data import (apply_manual_injections,
-                                generate_trade_report_sheet)
+from .pdf_parser import build_trade_dataframe, extract_kraken_trade_records_from_pdf
+from .trade_report_data import apply_manual_injections, generate_trade_report_sheet
 
 __all__ = [
     "style_excel",
