@@ -65,12 +65,13 @@ def _insert_roi_section(
 ) -> None:
     """Insert a titled section with conditional coloring into the Asset ROI sheet."""
     custom_logger.info(f"📌 Inserting section: {title}")
+    last_col = ws.max_column
     ws.insert_rows(start_row)
     ws.merge_cells(
         start_row=start_row,
         start_column=1,
         end_row=start_row,
-        end_column=ExcelStyling.SECTION_COLUMNS, # Length of merged ROI section header
+        end_column=last_col,
     )
 
     title_cell = ws.cell(row=start_row, column=1)
