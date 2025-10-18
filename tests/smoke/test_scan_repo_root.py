@@ -1,15 +1,15 @@
 # =============================================================================
 # 🧩 Test Module: test_scan_repo_root.py
 # =============================================================================
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator, List
-from dataclasses import dataclass
 
 import pytest
 
-from kraken_core import RepoScanConfig, PathsConfig, FolderType
 from helpers import file_helper
-from scripts.scan_repo import scan_repository, log_repo_structure
+from kraken_core import FolderType, PathsConfig, RepoScanConfig
+from scripts.scan_repo import log_repo_structure, scan_repository
 
 
 # =============================================================================

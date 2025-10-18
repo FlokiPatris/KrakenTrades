@@ -2,17 +2,15 @@
 # 💾 Trade Excel / Export Module
 # =============================================================================
 from pathlib import Path
+
 import pandas as pd
 
-from kraken_core import (
-    FormatRules,
-    MainSummaryMetrics,
-    TradeBreakdownSnapshot,
-    TradeColumn,
-    custom_logger,
-)
-from .trade_report_data import generate_trade_report_sheet, apply_manual_injections
+from kraken_core import (FormatRules, MainSummaryMetrics,
+                         TradeBreakdownSnapshot, TradeColumn, custom_logger)
 from market import fetch_market_price
+
+from .trade_report_data import (apply_manual_injections,
+                                generate_trade_report_sheet)
 
 
 # -------------------------------------------------------------------------
@@ -63,13 +61,19 @@ def export_roi_table(
         "roi", ascending=True
     )
     roi_df.rename(
-        columns={
+        columns={  # TODO: use proper currency ! it does not have to be EUR all the time.
+            "bought_volume": "Bought Volume",
+            "sold_volume": "Sold Volume",
+            "remaining_volume": "Remaining Volume",
+            "average_buy_price": "Avg Buy Price (€)",
+            "average_sell_price": "Avg Sell Price (€)",
+            "market_price": "Current Market Price (€)",
             "total_cost": "Total Cost (€)",
             "realized_sells": "Realized Sells (€)",
             "unrealized_value": "Unrealized Value (€)",
             "total_value": "Total Value (€)",
             "roi": "ROI (%)",
-            "potential_roi": "Potential ROI (%)",
+            "if_all_sold_now_roi": "If All Sold Now ROI (%)",
         },
         inplace=True,
     )
@@ -89,10 +93,10 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
     """
     custom_logger.info(f"📁 Writing Excel report to: {output}")
 
-    total_buys = 0.0
-    total_sells = 0.0
-    unrealized_value = 0.0
-    total_all_sold_now_value = 0.0
+    total_buys_sum = 0.0
+    total_sells_sum = 0.0
+    unrealized_value_sum = 0.0
+    total_all_sold_now_value_sum = 0.0
     roi_records: list[MainSummaryMetrics] = []
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -120,7 +124,7 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
             if remaining_volume < 0.02 * buy_volume:
                 custom_logger.info(
-                    f"Remaining volume for pair: {pair} is less than 2% of bought volume. Adjusting to zero."
+                    "Remaining volume is less than 2 percent of bought volume. Adjusting to zero."
                 )
                 remaining_volume = 0
 
@@ -129,25 +133,34 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             potential_value = buy_volume * market_price
             total_value = current_value + sell_total
 
+            # Averages
+            average_buy_price = (cost / buy_volume) if buy_volume > 0 else 0.0
+            average_sell_price = (sell_total / sell_volume) if sell_volume > 0 else 0.0
+
             realized_roi = ((total_value - cost) / cost) if cost > 0 else 0
             potential_roi = ((potential_value - cost) / cost) if cost > 0 else 0
 
-            total_buys += cost
-            total_sells += sell_total
-            unrealized_value += current_value
-            total_all_sold_now_value += potential_value
+            total_buys_sum += cost
+            total_sells_sum += sell_total
+            unrealized_value_sum += current_value
+            total_all_sold_now_value_sum += potential_value
 
             roi_records.append(
                 MainSummaryMetrics(
                     token=token,
-                    pair=pair_str,
-                    total_cost=cost,
-                    realized_sells=sell_total,
-                    unrealized_value=current_value,
-                    total_value=total_value,
-                    roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_8),
-                    potential_roi=round(
-                        potential_roi * 100, FormatRules.DECIMAL_PLACES_8
+                    bought_volume=buy_volume,
+                    sold_volume=sell_volume,
+                    remaining_volume=remaining_volume,
+                    average_buy_price=average_buy_price,
+                    average_sell_price=average_sell_price,
+                    market_price=market_price,
+                    total_cost=round(cost, FormatRules.DECIMAL_PLACES_2),
+                    realized_sells=round(sell_total, FormatRules.DECIMAL_PLACES_2),
+                    unrealized_value=round(current_value, FormatRules.DECIMAL_PLACES_2),
+                    total_value=round(total_value, FormatRules.DECIMAL_PLACES_2),
+                    roi=round(realized_roi * 100, FormatRules.DECIMAL_PLACES_2),
+                    if_all_sold_now_roi=round(
+                        potential_roi * 100, FormatRules.DECIMAL_PLACES_2
                     ),
                 )
             )
@@ -181,10 +194,10 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
 
         # Write Portfolio Summary
         summary = generate_portfolio_summary(
-            total_buys=total_buys,
-            total_sells=total_sells,
-            unrealized_value=unrealized_value,
-            total_all_sold_now_value=total_all_sold_now_value,
+            total_buys=total_buys_sum,
+            total_sells=total_sells_sum,
+            unrealized_value=unrealized_value_sum,
+            total_all_sold_now_value=total_all_sold_now_value_sum,
         )
         summary.to_excel(writer, sheet_name="Portfolio", index=False)  # type:ignore
 

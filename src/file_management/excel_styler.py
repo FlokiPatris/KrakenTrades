@@ -4,12 +4,13 @@ from __future__ import annotations
 # 📦 Imports
 # =============================================================================
 from pathlib import Path
-from typing import List, Iterable
+from typing import Iterable, List
+
 from openpyxl import Workbook, load_workbook
-from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
-from openpyxl.utils import get_column_letter
 from openpyxl.styles import PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 
 from kraken_core import ExcelStyling, custom_logger
 
@@ -20,7 +21,7 @@ from kraken_core import ExcelStyling, custom_logger
 def _auto_adjust_columns(ws: Worksheet) -> None:
     """Auto-adjust column widths with a max width limit from ExcelStyling."""
     for col in ws.columns:
-        max_width: int = max(len(str(cell.value) or "") for cell in col) + 4
+        max_width: int = max(len(str(cell.value) or "") for cell in col) + 1
 
         col_index: int | None = col[0].column
         if col_index is None:
@@ -64,12 +65,13 @@ def _insert_roi_section(
 ) -> None:
     """Insert a titled section with conditional coloring into the Asset ROI sheet."""
     custom_logger.info(f"📌 Inserting section: {title}")
+    last_col = ws.max_column
     ws.insert_rows(start_row)
     ws.merge_cells(
         start_row=start_row,
         start_column=1,
         end_row=start_row,
-        end_column=ExcelStyling.SECTION_COLUMNS,
+        end_column=last_col,
     )
 
     title_cell = ws.cell(row=start_row, column=1)
@@ -81,7 +83,7 @@ def _insert_roi_section(
     for i, row in enumerate(row_list, start=start_row + 1):
         for j, cell in enumerate(row, start=1):
             new_cell = ws.cell(row=i, column=j, value=cell.value)
-            if j in (7, 8) and isinstance(cell.value, (int, float)):
+            if j in (12, 13) and isinstance(cell.value, (int, float)):
                 new_cell.fill = (
                     ExcelStyling.GREEN_FILL
                     if cell.value >= 0
@@ -89,28 +91,83 @@ def _insert_roi_section(
                 )
 
 
-def _style_asset_roi_sheet(ws: Worksheet) -> None:
-    """Apply Asset ROI-specific formatting and regroup positive/negative ROI assets."""
-    custom_logger.info("📈 Styling Asset ROI sheet")
+def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
+    """
+    Generic Asset ROI sheet styling and grouping.
 
+    group_by options:
+        - "roi" → Positive vs Negative ROI
+        - "remaining_volume" → Unsold vs Sold assets based on Remaining Volume
+    """
+    custom_logger.info(f"📈 Styling Asset ROI sheet (group_by={group_by})")
+
+    headers = [cell.value for cell in ws[1]]
     rows = list(ws.iter_rows(min_row=2, max_row=ws.max_row))
-    pos_rows = [r for r in rows if r[6].value is not None and r[6].value >= 0]
-    neg_rows = [r for r in rows if r[6].value is not None and r[6].value < 0]
 
-    # Clear existing rows before reinserting grouped sections
-    ws.delete_rows(2, ws.max_row)
+    # --- Determine grouping column ---
+    if group_by == "roi":
+        try:
+            col_idx = headers.index("ROI (%)")
+        except ValueError:
+            custom_logger.error("❌ ROI (%) column not found in Asset ROI sheet")
+            return
+        pos_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value >= 0
+        ]
+        neg_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value < 0
+        ]
 
-    if pos_rows:
-        _insert_roi_section(
-            ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2
-        )
-    if neg_rows:
-        _insert_roi_section(
-            ws,
-            "🔻 Negative ROI Assets 🔻",
-            ExcelStyling.RED_FILL,
-            neg_rows,
-            3 + len(pos_rows),
+        ws.delete_rows(2, ws.max_row)
+
+        if pos_rows:
+            _insert_roi_section(
+                ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2
+            )
+        if neg_rows:
+            _insert_roi_section(
+                ws,
+                "🔻 Negative ROI Assets 🔻",
+                ExcelStyling.RED_FILL,
+                neg_rows,
+                3 + len(pos_rows),
+            )
+
+    elif group_by == "remaining_volume":
+        try:
+            col_idx = headers.index("Remaining Volume")
+        except ValueError:
+            custom_logger.error(
+                "❌ Remaining Volume column not found in Asset ROI sheet"
+            )
+            return
+        unsold_rows = [r for r in rows if r[col_idx].value and r[col_idx].value > 0]
+        sold_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value <= 0
+        ]
+
+        ws.delete_rows(2, ws.max_row)
+
+        if unsold_rows:
+            _insert_roi_section(
+                ws,
+                "📦 Unsold Assets (Still Holding)",
+                ExcelStyling.GREEN_FILL,
+                unsold_rows,
+                2,
+            )
+        if sold_rows:
+            _insert_roi_section(
+                ws,
+                "💰 Sold Assets (Closed Positions)",
+                ExcelStyling.RED_FILL,
+                sold_rows,
+                3 + len(unsold_rows),
+            )
+
+    else:
+        custom_logger.warning(
+            f"⚠️ Unknown group_by value '{group_by}', skipping grouping."
         )
 
 

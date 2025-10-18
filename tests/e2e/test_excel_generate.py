@@ -1,8 +1,8 @@
 import pytest
 
+from helpers import file_helper
 from kraken_core import FolderType, PathsConfig
 from main import main
-from helpers import file_helper
 from tests.assertions import assert_script_generates_excel
 
 

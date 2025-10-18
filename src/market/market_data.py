@@ -2,6 +2,7 @@
 # 🧩 Imports
 # =============================================================================
 from typing import Optional
+
 import requests
 
 from kraken_core import KrakenAPI, custom_logger

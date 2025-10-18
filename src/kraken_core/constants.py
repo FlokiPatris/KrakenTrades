@@ -2,14 +2,17 @@
 # 🧰 Environment & Config
 # --------------------------------------------------------------------
 from __future__ import annotations
+
 import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet
+
 from dotenv import load_dotenv
 from openpyxl.styles import Alignment, Font, PatternFill
-from .enums import TradeColumn, FolderType
+
+from .enums import FolderType, TradeColumn
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -73,9 +76,7 @@ class RepoScanConfig:
     CATEGORIES_TO_SCAN: FrozenSet[str] = frozenset(
         [".ci", ".github", "scripts", "src", "tests"]
     )
-    CATEGORIES_TO_TEST: FrozenSet[str] = frozenset(
-        ["e2e", "smoke", "integration", "assertions"]
-    )
+    CATEGORIES_TO_TEST: FrozenSet[str] = frozenset(["e2e", "smoke", "assertions"])
 
 
 # --------------------------------------------------------------------
@@ -187,7 +188,7 @@ class ExcelStyling:
     HEADER_ROW_INDEX: int = 1
     PORTFOLIO_SHEET: str = "Portfolio"
     ASSET_ROI_SHEET: str = "Asset ROI"
-    SECTION_COLUMNS: int = 8  # Number of columns in merged ROI section header
+    SECTION_COLUMNS: int = 13  # Number of columns in merged ROI section header
 
     # === Header fills (hex strings only) ===
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green

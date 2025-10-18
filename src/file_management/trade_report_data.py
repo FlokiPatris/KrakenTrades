@@ -1,14 +1,12 @@
 # =============================================================================
 # 📊 Trade DataFrame / Reporting Module
 # =============================================================================
-from typing import Optional, Any
+from typing import Any, Optional
+
 import pandas as pd
 
-from kraken_core import (
-    TradeBreakdownSnapshot,
-    TradeColumn,
-    custom_logger,
-)
+from kraken_core import TradeBreakdownSnapshot, TradeColumn, custom_logger
+from market import manual_litecoin_injection, manual_onyx_injection
 
 
 # -------------------------------------------------------------------------
@@ -94,8 +92,6 @@ def apply_manual_injections(pair: str, buys: pd.DataFrame) -> pd.DataFrame:
     """
     Applies manual corrections or injections to the 'buys' DataFrame based on the trading pair.
     """
-    from market import manual_onyx_injection, manual_litecoin_injection
-
     custom_logger.debug(f"Applying manual injections for pair: {pair}")
     if pair == "XCN/EUR":
         return manual_onyx_injection(buys)
