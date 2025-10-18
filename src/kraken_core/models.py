@@ -17,7 +17,6 @@ class MainSummaryMetrics:
 
     Attributes:
         token: Quote token
-        pair: Trading pair
         bought_volume: Total volume purchased
         sold_volume: Total volume sold
         remaining_volume: Volume still held
@@ -33,7 +32,6 @@ class MainSummaryMetrics:
     """
 
     token: str
-    pair: str
     bought_volume: float
     sold_volume: float
     remaining_volume: float

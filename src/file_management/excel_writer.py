@@ -148,7 +148,6 @@ def write_excel(df: pd.DataFrame, output: Path) -> None:
             roi_records.append(
                 MainSummaryMetrics(
                     token=token,
-                    pair=pair_str,
                     bought_volume=buy_volume,
                     sold_volume=sell_volume,
                     remaining_volume=remaining_volume,

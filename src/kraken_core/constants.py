@@ -188,7 +188,7 @@ class ExcelStyling:
     HEADER_ROW_INDEX: int = 1
     PORTFOLIO_SHEET: str = "Portfolio"
     ASSET_ROI_SHEET: str = "Asset ROI"
-    SECTION_COLUMNS: int = 8  # Number of columns in merged ROI section header
+    SECTION_COLUMNS: int = 13  # Number of columns in merged ROI section header
 
     # === Header fills (hex strings only) ===
     HEADER_POSITIVE_FILL: str = "C6EFCE"  # Light green

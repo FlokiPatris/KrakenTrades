@@ -70,7 +70,7 @@ def _insert_roi_section(
         start_row=start_row,
         start_column=1,
         end_row=start_row,
-        end_column=ExcelStyling.SECTION_COLUMNS,
+        end_column=ExcelStyling.SECTION_COLUMNS, # Length of merged ROI section header
     )
 
     title_cell = ws.cell(row=start_row, column=1)
@@ -82,7 +82,7 @@ def _insert_roi_section(
     for i, row in enumerate(row_list, start=start_row + 1):
         for j, cell in enumerate(row, start=1):
             new_cell = ws.cell(row=i, column=j, value=cell.value)
-            if j in (7, 8) and isinstance(cell.value, (int, float)):
+            if j in (12, 13) and isinstance(cell.value, (int, float)):
                 new_cell.fill = (
                     ExcelStyling.GREEN_FILL
                     if cell.value >= 0
