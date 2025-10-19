@@ -3,6 +3,7 @@
 # --------------------------------------------------------------------
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -224,3 +225,9 @@ class FormatRules:
     DECIMAL_PLACES_10: int = 10
     DECIMAL_PLACES_2: int = 2
     DECIMAL_PLACES_8: int = 8
+
+# -----------------------------------------------------------------
+# 📊 Main Summary Metric
+# -----------------------------------------------------------------
+token_map_str = get_env_var("TOKEN_MAP_STR", required=True)
+TOKEN_MAP = json.loads(token_map_str)
