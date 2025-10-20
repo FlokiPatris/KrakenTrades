@@ -2,24 +2,25 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import List
+
 import pandas as pd
 
-from kraken_core import (
-    TradeColumn,
-    custom_logger,
-    TradeBreakdownSnapshot,
-    TradeMetricsResult,
-    TOKEN_MAP,
-)
+from kraken_core import (TOKEN_MAP, TradeBreakdownSnapshot, TradeColumn,
+                         TradeMetricsResult, custom_logger)
 from market.market_data import fetch_bulk_market_data
-from .portfolio_metrics import compute_trade_metrics, generate_portfolio_summary
-from .trade_report_data import apply_manual_injections, generate_trade_report_sheet
+
+from .portfolio_metrics import (compute_trade_metrics,
+                                generate_portfolio_summary)
+from .trade_report_data import (apply_manual_injections,
+                                generate_trade_report_sheet)
 
 
 # =============================================================================
 # 📊 ROI Table Writer
 # =============================================================================
-def write_roi_table(roi_records: List[TradeMetricsResult], writer: pd.ExcelWriter) -> None:
+def write_roi_table(
+    roi_records: List[TradeMetricsResult], writer: pd.ExcelWriter
+) -> None:
     """Writes ROI summary table including extended metrics to Excel."""
     custom_logger.info("Exporting ROI table with extended market metrics")
 
@@ -30,7 +31,9 @@ def write_roi_table(roi_records: List[TradeMetricsResult], writer: pd.ExcelWrite
         return
 
     # Flatten TradeMetricsResult (includes MainSummaryMetrics + MarketData)
-    from .excel_styler import flatten_trade_metrics_result  # ensures latest version used
+    from .excel_styler import \
+        flatten_trade_metrics_result  # ensures latest version used
+
     flat_data = [flatten_trade_metrics_result(r) for r in roi_records]
 
     roi_df = pd.DataFrame(flat_data)
@@ -117,7 +120,9 @@ def write_portfolio_report(df: pd.DataFrame, output: Path) -> None:
             group = apply_manual_injections(pair_str, group)
 
             # Compute metrics
-            metrics_result = compute_trade_metrics(pair_str, group, market_data_map.get(pair_str, {}))
+            metrics_result = compute_trade_metrics(
+                pair_str, group, market_data_map.get(pair_str, {})
+            )
             metrics = metrics_result.metrics
 
             # Aggregate totals

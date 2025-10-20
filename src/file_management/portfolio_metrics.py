@@ -2,8 +2,11 @@
 # 🛠️ Portfolio Metrics & Trade Calculations
 # =============================================================================
 from typing import Optional
+
 import pandas as pd
-from kraken_core import TradeColumn, MainSummaryMetrics, TradeMetricsResult, MarketData, custom_logger
+
+from kraken_core import (MainSummaryMetrics, MarketData, TradeColumn,
+                         TradeMetricsResult, custom_logger)
 
 
 def compute_trade_metrics(
@@ -60,7 +63,7 @@ def compute_trade_metrics(
         total_value=total_value,
         roi=realized_roi * 100,
         if_all_sold_now_roi=potential_roi * 100,
-        market_data=market_data
+        market_data=market_data,
     )
 
     return TradeMetricsResult(

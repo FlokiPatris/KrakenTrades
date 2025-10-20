@@ -2,18 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, List
+
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from kraken_core import (
-    ExcelStyling,
-    custom_logger,
-    TradeMetricsResult,
-    MainSummaryMetrics,
-)
+from kraken_core import (ExcelStyling, MainSummaryMetrics, TradeMetricsResult,
+                         custom_logger)
 
 
 # =============================================================================
@@ -24,12 +21,12 @@ def _auto_adjust_columns(ws: Worksheet) -> None:
     for col in ws.columns:
         try:
             # Include header (first row) + all cell values
-            max_width = max(
-                len(str(cell.value) or "") for cell in col
-            )
+            max_width = max(len(str(cell.value) or "") for cell in col)
             col_index = col[0].column
             col_letter: str = get_column_letter(col_index)
-            ws.column_dimensions[col_letter].width = min(max_width + 2, ExcelStyling.MAX_COLUMN_WIDTH)
+            ws.column_dimensions[col_letter].width = min(
+                max_width + 2, ExcelStyling.MAX_COLUMN_WIDTH
+            )
         except Exception as e:
             custom_logger.warning(f"⚠️ Column width adjustment failed: {e}")
 
@@ -49,7 +46,11 @@ def _style_portfolio_sheet(ws: Worksheet) -> None:
         row[1].alignment = ExcelStyling.RIGHT_ALIGNMENT
         if str(row[0].value) == "Result":
             row[1].font = ExcelStyling.BOLD_FONT
-            row[1].fill = ExcelStyling.GREEN_FILL if "up" in str(row[1].value).lower() else ExcelStyling.RED_FILL
+            row[1].fill = (
+                ExcelStyling.GREEN_FILL
+                if "up" in str(row[1].value).lower()
+                else ExcelStyling.RED_FILL
+            )
 
 
 # =============================================================================
@@ -66,7 +67,9 @@ def _insert_roi_section(
     custom_logger.info(f"📌 Inserting section: {title}")
     last_col = ws.max_column
     ws.insert_rows(start_row)
-    ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=last_col)
+    ws.merge_cells(
+        start_row=start_row, start_column=1, end_row=start_row, end_column=last_col
+    )
 
     title_cell = ws.cell(row=start_row, column=1)
     title_cell.value = title
@@ -78,7 +81,11 @@ def _insert_roi_section(
         for j, cell in enumerate(row, start=1):
             new_cell = ws.cell(row=i, column=j, value=cell.value)
             if j in (2, 3) and isinstance(cell.value, (int, float)):
-                new_cell.fill = ExcelStyling.GREEN_FILL if cell.value >= 0 else ExcelStyling.RED_FILL
+                new_cell.fill = (
+                    ExcelStyling.GREEN_FILL
+                    if cell.value >= 0
+                    else ExcelStyling.RED_FILL
+                )
 
 
 def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
@@ -100,14 +107,26 @@ def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
             custom_logger.error("❌ ROI (%) column not found")
             return
 
-        pos_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value >= 0]
-        neg_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value < 0]
+        pos_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value >= 0
+        ]
+        neg_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value < 0
+        ]
 
         ws.delete_rows(2, ws.max_row)
         if pos_rows:
-            _insert_roi_section(ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2)
+            _insert_roi_section(
+                ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2
+            )
         if neg_rows:
-            _insert_roi_section(ws, "🔻 Negative ROI Assets 🔻", ExcelStyling.RED_FILL, neg_rows, 3 + len(pos_rows))
+            _insert_roi_section(
+                ws,
+                "🔻 Negative ROI Assets 🔻",
+                ExcelStyling.RED_FILL,
+                neg_rows,
+                3 + len(pos_rows),
+            )
 
     elif group_by == "remaining_volume":
         try:
@@ -117,16 +136,32 @@ def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
             return
 
         unsold_rows = [r for r in rows if r[col_idx].value and r[col_idx].value > 0]
-        sold_rows = [r for r in rows if r[col_idx].value is not None and r[col_idx].value <= 0]
+        sold_rows = [
+            r for r in rows if r[col_idx].value is not None and r[col_idx].value <= 0
+        ]
 
         ws.delete_rows(2, ws.max_row)
         if unsold_rows:
-            _insert_roi_section(ws, "📦 Unsold Assets (Still Holding)", ExcelStyling.GREEN_FILL, unsold_rows, 2)
+            _insert_roi_section(
+                ws,
+                "📦 Unsold Assets (Still Holding)",
+                ExcelStyling.GREEN_FILL,
+                unsold_rows,
+                2,
+            )
         if sold_rows:
-            _insert_roi_section(ws, "💰 Sold Assets (Closed Positions)", ExcelStyling.RED_FILL, sold_rows, 3 + len(unsold_rows))
+            _insert_roi_section(
+                ws,
+                "💰 Sold Assets (Closed Positions)",
+                ExcelStyling.RED_FILL,
+                sold_rows,
+                3 + len(unsold_rows),
+            )
 
     else:
-        custom_logger.warning(f"⚠️ Unknown group_by value '{group_by}', skipping grouping.")
+        custom_logger.warning(
+            f"⚠️ Unknown group_by value '{group_by}', skipping grouping."
+        )
 
 
 # =============================================================================
@@ -150,11 +185,11 @@ def _reorder_sheets(wb: Workbook) -> None:
     """Reorder sheets: Portfolio → Asset ROI → Tokens."""
     custom_logger.info("🔀 Reordering sheets")
     wb._sheets.sort(
-        key=lambda s: 0
-        if s.title == ExcelStyling.PORTFOLIO_SHEET
-        else 1
-        if s.title == ExcelStyling.ASSET_ROI_SHEET
-        else 2
+        key=lambda s: (
+            0
+            if s.title == ExcelStyling.PORTFOLIO_SHEET
+            else 1 if s.title == ExcelStyling.ASSET_ROI_SHEET else 2
+        )
     )
 
 
@@ -200,7 +235,7 @@ def flatten_trade_metrics_result(result: TradeMetricsResult) -> dict:
     flat = {
         "token": result.metrics.token,
         "roi": result.metrics.roi,
-        "if_all_sold_now_roi": result.metrics.if_all_sold_now_roi
+        "if_all_sold_now_roi": result.metrics.if_all_sold_now_roi,
     }
 
     # Then the main summary metrics
@@ -213,6 +248,6 @@ def flatten_trade_metrics_result(result: TradeMetricsResult) -> dict:
     if metrics.market_data:
         for key, value in metrics.market_data.__dict__.items():
             flat[key] = value
-            
-    del flat['price']  # Remove 'price' to avoid confusion with 'market_price'
+
+    del flat["price"]  # Remove 'price' to avoid confusion with 'market_price'
     return flat

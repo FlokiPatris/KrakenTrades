@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
+
 import pandas as pd
+
 
 # -----------------------------------------------------------------------------
 # 📊 Market Data for a Token (CoinGecko + Kraken)
@@ -20,6 +22,7 @@ class MarketData:
     ath: Optional[float] = None
     ath_change_percentage: Optional[float] = None
     ath_date: Optional[str] = None
+
 
 # -----------------------------------------------------------------------------
 # 📈 Main Summary Metrics (Extended with Market Data)
@@ -45,6 +48,7 @@ class MainSummaryMetrics:
         if_all_sold_now_roi: ROI if fully sold now at current market price
         market_data: Nested MarketData containing CoinGecko/Kraken metrics
     """
+
     token: str
     bought_volume: float
     sold_volume: float
@@ -61,6 +65,7 @@ class MainSummaryMetrics:
 
     # 🔹 Nested Market Data
     market_data: Optional[MarketData] = None
+
 
 # -----------------------------------------------------------------------------
 # 📉 Trade Breakdown Snapshot
@@ -79,6 +84,7 @@ class TradeBreakdownSnapshot:
     potential_value: float
     sell_total: float
     current_value: float
+
 
 # -----------------------------------------------------------------------------
 # 🧮 Trade Metrics Result
