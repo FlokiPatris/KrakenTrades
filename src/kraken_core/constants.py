@@ -3,6 +3,7 @@
 # --------------------------------------------------------------------
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -224,3 +225,41 @@ class FormatRules:
     DECIMAL_PLACES_10: int = 10
     DECIMAL_PLACES_2: int = 2
     DECIMAL_PLACES_8: int = 8
+
+
+# -----------------------------------------------------------------
+# 📊 Main Summary Metric
+# -----------------------------------------------------------------
+TOKEN_MAP = {
+    "ADA/EUR": "cardano",
+    "AIOZ/EUR": "aioz-network",
+    "AKT/EUR": "akash-network",
+    "BEAM/EUR": "beam",
+    "BTC/EUR": "bitcoin",
+    "DOT/EUR": "polkadot",
+    "LTC/EUR": "litecoin",
+    "PYTH/EUR": "pyth-network",
+    "RENDER/EUR": "render-token",
+    "TAO/EUR": "bittensor",
+    "WAXL/EUR": "wax",
+    "XCN/EUR": "chainx",
+    "XRP/EUR": "ripple",
+    "ZEUS/EUR": "zeus-network",
+    "1000CAT/EUR": "1000cat",
+    "1000X/EUR": "1000x-by-virtuals",
+    "100YEN/EUR": "100-token",
+    "FIGS/EUR": "10-figs",
+    "ZHAO/EUR": "-11",
+    "GLM/EUR": "golem",
+    "DASH/EUR": "dash",
+    "ETH/EUR": "ethereum",
+    "FET/EUR": "fetch-ai",
+    "KAS/EUR": "kaspa",
+    "LDO/EUR": "lido-dao",
+    "LINK/EUR": "chainlink",
+    "MATIC/EUR": "polygon",
+    "NANO/EUR": "nano",
+    "OCEAN/EUR": "ocean-protocol",
+    "SOL/EUR": "solana",
+    "XLM/EUR": "stellar",
+}

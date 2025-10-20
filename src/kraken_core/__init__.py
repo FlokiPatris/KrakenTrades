@@ -6,14 +6,16 @@ Exposes core classes, constants, and utilities for Kraken trading data and confi
 # === Excel Styling Constants ===
 # === Regex & Format Rules ===
 # === File & API Configuration ===
-from .constants import (ExcelStyling, FormatRules, KrakenAPI, PathsConfig,
-                        PostgresConfig, RepoScanConfig, TradeRegex)
+from .constants import (TOKEN_MAP, ExcelStyling, FormatRules, KrakenAPI,
+                        PathsConfig, PostgresConfig, RepoScanConfig,
+                        TradeRegex)
 # === Logger ===
 from .custom_logger import custom_logger
 # === Trade Column Enums ===
 from .enums import FolderType, RawColumn, TradeColumn
 # === Data Classes for Trading ===
-from .models import MainSummaryMetrics, TradeBreakdownSnapshot
+from .models import (MainSummaryMetrics, MarketData, TradeBreakdownSnapshot,
+                     TradeMetricsResult)
 
 __all__ = [
     "PathsConfig",
@@ -25,8 +27,11 @@ __all__ = [
     "custom_logger",
     "RepoScanConfig",
     "MainSummaryMetrics",
+    "TradeMetricsResult",
     "TradeBreakdownSnapshot",
+    "MarketData",
     "TradeColumn",
     "RawColumn",
     "FolderType",
+    "TOKEN_MAP",
 ]

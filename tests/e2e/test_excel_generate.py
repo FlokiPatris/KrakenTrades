@@ -16,7 +16,7 @@ def clean_uploads_dir():
 
     yield
 
-
+@pytest.mark.skip(reason="I need to create first a way to not fetch 30d charts test is too slow")
 def test_script_generates_excel():
     """
     Smoke test: run script and check Excel report is generated.
