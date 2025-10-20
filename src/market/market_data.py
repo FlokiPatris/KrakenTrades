@@ -1,13 +1,12 @@
-from typing import Optional, Dict, List
-import pandas as pd
+from typing import  Dict, List
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import numpy as np
+from urllib3 import Retry
 from kraken_core import KrakenAPI, custom_logger, MarketData
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 COINGECKO_API = "https://api.coingecko.com/api/v3"
-MAX_THREADS = 3  # limit concurrency to respect rate limits
 
 # =========================
 # Requests session with retries
@@ -61,12 +60,36 @@ def fetch_global_dominance() -> Dict[str, float]:
         _global_dominance_cache = {}
     return _global_dominance_cache
 
-def fetch_coin_dominance(token_id: str) -> Optional[float]:
-    dominance_key = DOMINANCE_MAPPING.get(token_id.lower())
-    if not dominance_key:
+def fetch_coin_dominance(token_id: str) -> float:
+    key = DOMINANCE_MAPPING.get(token_id.lower())
+    if not key:
         return 0.0
     dominance_data = fetch_global_dominance()
-    return float(dominance_data.get(dominance_key, 0))
+    return float(dominance_data.get(key, 0))
+
+# =========================
+# Fetch historical prices (30d)
+# =========================
+def fetch_historical_prices(token_id: str, vs_currency: str = "eur", days: int = 30) -> List[float]:
+    try:
+        resp = session.get(
+            f"{COINGECKO_API}/coins/{token_id}/market_chart",
+            params={"vs_currency": vs_currency, "days": days},
+            timeout=10
+        )
+        resp.raise_for_status()
+        return [price[1] for price in resp.json().get("prices", [])]
+    except Exception as e:
+        custom_logger.warning(f"Failed to fetch 30d prices for {token_id}: {e}")
+        return []
+
+def calculate_volatility_momentum(prices: List[float]) -> (float, float):
+    if len(prices) < 2:
+        return 0.0, 0.0
+    returns = np.diff(prices) / prices[:-1]
+    volatility = float(np.std(returns) * 100)
+    momentum = float((prices[-1] - prices[0]) / prices[0] * 100)
+    return volatility, momentum
 
 # =========================
 # Fetch CoinGecko bulk market data
@@ -75,16 +98,13 @@ def fetch_coingecko_data_bulk(token_ids: List[str], vs_currency: str = "eur") ->
     md_map: Dict[str, MarketData] = {}
     try:
         ids = ",".join(token_ids)
-        url = f"{COINGECKO_API}/coins/markets"
-        resp = session.get(url, params={"vs_currency": vs_currency, "ids": ids}, timeout=10)
+        resp = session.get(f"{COINGECKO_API}/coins/markets", params={"vs_currency": vs_currency, "ids": ids}, timeout=10)
         resp.raise_for_status()
         data_list = resp.json()
 
         for data in data_list:
             md = MarketData()
             md.market_cap = float(data.get("market_cap", 0))
-            md.daily_volume = float(data.get("total_volume", 0))
-            md.price = float(data.get("current_price", 0))
             md.high_24h = float(data.get("high_24h", 0))
             md.low_24h = float(data.get("low_24h", 0))
             md.price_change_percentage_24h = float(data.get("price_change_percentage_24h", 0))
@@ -93,31 +113,16 @@ def fetch_coingecko_data_bulk(token_ids: List[str], vs_currency: str = "eur") ->
             md.ath_change_percentage = float(data.get("ath_change_percentage", 0))
             md.ath_date = data.get("ath_date")
             md.dominance = fetch_coin_dominance(data["id"])
+
+            # 30d metrics
+            prices_30d = fetch_historical_prices(data["id"])
+            md.volatility_30d, md.momentum_30d = calculate_volatility_momentum(prices_30d)
+
             md_map[data["id"]] = md
 
     except Exception as e:
         custom_logger.warning(f"Failed bulk CoinGecko fetch: {e}")
     return md_map
-
-# =========================
-# Fetch 30-day historical chart
-# =========================
-def fetch_market_chart_30d(token_id: str, vs_currency: str = "eur") -> Optional[dict]:
-    try:
-        url = f"{COINGECKO_API}/coins/{token_id}/market_chart"
-        resp = session.get(url, params={"vs_currency": vs_currency, "days": 30, "interval": "daily"}, timeout=10)
-        resp.raise_for_status()
-        prices = [p[1] for p in resp.json().get("prices", [])]
-        if not prices:
-            return None
-        series = pd.Series(prices)
-        return {
-            "volatility_30d": float(series.pct_change().std()),
-            "momentum_30d": float(series.iloc[-1] / series.mean() - 1),
-        }
-    except Exception as e:
-        custom_logger.warning(f"Failed 30d market chart for {token_id}: {e}")
-        return None
 
 # =========================
 # Fetch Kraken data per pair
@@ -139,7 +144,7 @@ def fetch_kraken_data(pair: str) -> dict:
     return {"price": None, "daily_volume": None}
 
 # =========================
-# Combine Kraken + CoinGecko + 30d data
+# Combine Kraken + CoinGecko + 30d metrics
 # =========================
 def fetch_market_data(pair: str, token_id: str, cg_map: Dict[str, MarketData]) -> MarketData:
     md = cg_map.get(token_id, MarketData())
@@ -148,28 +153,18 @@ def fetch_market_data(pair: str, token_id: str, cg_map: Dict[str, MarketData]) -
         md.price = kraken_data["price"]
     if kraken_data["daily_volume"] is not None:
         md.daily_volume = kraken_data["daily_volume"]
-    chart = fetch_market_chart_30d(token_id)
-    if chart:
-        md.volatility_30d = chart["volatility_30d"]
-        md.momentum_30d = chart["momentum_30d"]
     return md
 
 # =========================
-# Fetch all market data in bulk
+# Fetch all market data (synchronous)
 # =========================
 def fetch_bulk_market_data(pairs: List[str], token_map: Dict[str, str]) -> Dict[str, MarketData]:
-    token_ids = list(token_map.values())
     custom_logger.info("Fetching bulk CoinGecko market data...")
-    cg_map = fetch_coingecko_data_bulk(token_ids)
-
+    cg_map = fetch_coingecko_data_bulk(list(token_map.values()))
     market_data_dict: Dict[str, MarketData] = {}
-    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        future_map = {executor.submit(fetch_market_data, pair, token_map[pair], cg_map): pair for pair in pairs}
-        for future in as_completed(future_map):
-            pair = future_map[future]
-            try:
-                market_data_dict[pair] = future.result()
-            except Exception as e:
-                custom_logger.warning(f"Failed to fetch data for {pair}: {e}")
+
+    for pair in pairs:
+        token_id = token_map[pair]
+        market_data_dict[pair] = fetch_market_data(pair, token_id, cg_map)
 
     return market_data_dict

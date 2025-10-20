@@ -20,13 +20,16 @@ from kraken_core import (
 # 🧱 Basic Styling Utilities
 # =============================================================================
 def _auto_adjust_columns(ws: Worksheet) -> None:
-    """Auto-adjust column widths with a max width limit from ExcelStyling."""
+    """Auto-adjust column widths based on header and cell values, with a max width limit."""
     for col in ws.columns:
         try:
-            max_width: int = max(len(str(cell.value) or "") for cell in col) + 1
+            # Include header (first row) + all cell values
+            max_width = max(
+                len(str(cell.value) or "") for cell in col
+            )
             col_index = col[0].column
             col_letter: str = get_column_letter(col_index)
-            ws.column_dimensions[col_letter].width = min(max_width, ExcelStyling.MAX_COLUMN_WIDTH)
+            ws.column_dimensions[col_letter].width = min(max_width + 2, ExcelStyling.MAX_COLUMN_WIDTH)
         except Exception as e:
             custom_logger.warning(f"⚠️ Column width adjustment failed: {e}")
 
@@ -58,31 +61,24 @@ def _insert_roi_section(
     fill: PatternFill,
     row_list: List[Iterable[Cell]],
     start_row: int,
-    start_column: int = 1,
 ) -> None:
     """Insert a titled section with conditional coloring into the Asset ROI sheet."""
     custom_logger.info(f"📌 Inserting section: {title}")
     last_col = ws.max_column
     ws.insert_rows(start_row)
-    ws.merge_cells(
-        start_row=start_row,
-        start_column=start_column,
-        end_row=start_row,
-        end_column=last_col
-    )
+    ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=last_col)
 
-    title_cell = ws.cell(row=start_row, column=start_column)
+    title_cell = ws.cell(row=start_row, column=1)
     title_cell.value = title
     title_cell.font = ExcelStyling.BOLD_FONT
     title_cell.alignment = ExcelStyling.CENTER_ALIGNMENT
     title_cell.fill = fill
 
     for i, row in enumerate(row_list, start=start_row + 1):
-        for j, cell in enumerate(row, start=start_column):
+        for j, cell in enumerate(row, start=1):
             new_cell = ws.cell(row=i, column=j, value=cell.value)
-            if j in (start_column + 1, start_column + 2) and isinstance(cell.value, (int, float)):
+            if j in (2, 3) and isinstance(cell.value, (int, float)):
                 new_cell.fill = ExcelStyling.GREEN_FILL if cell.value >= 0 else ExcelStyling.RED_FILL
-
 
 
 def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
@@ -96,7 +92,6 @@ def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
     custom_logger.info(f"📈 Styling Asset ROI sheet (group_by={group_by})")
     headers = [cell.value for cell in ws[1]]
     rows = list(ws.iter_rows(min_row=2, max_row=ws.max_row))
-    half_col = round(ws.max_column / 2)
 
     if group_by == "roi":
         try:
@@ -110,9 +105,9 @@ def _style_asset_roi_sheet(ws: Worksheet, group_by: str = "roi") -> None:
 
         ws.delete_rows(2, ws.max_row)
         if pos_rows:
-            _insert_roi_section(ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2, half_col)
+            _insert_roi_section(ws, "🟢 Positive ROI Assets 🟢", ExcelStyling.GREEN_FILL, pos_rows, 2)
         if neg_rows:
-            _insert_roi_section(ws, "🔻 Negative ROI Assets 🔻", ExcelStyling.RED_FILL, neg_rows, 3 + len(pos_rows), half_col)
+            _insert_roi_section(ws, "🔻 Negative ROI Assets 🔻", ExcelStyling.RED_FILL, neg_rows, 3 + len(pos_rows))
 
     elif group_by == "remaining_volume":
         try:
@@ -218,5 +213,6 @@ def flatten_trade_metrics_result(result: TradeMetricsResult) -> dict:
     if metrics.market_data:
         for key, value in metrics.market_data.__dict__.items():
             flat[key] = value
-
+            
+    del flat['price']  # Remove 'price' to avoid confusion with 'market_price'
     return flat
