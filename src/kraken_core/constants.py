@@ -262,4 +262,5 @@ TOKEN_MAP = {
     "OCEAN/EUR": "ocean-protocol",
     "SOL/EUR": "solana",
     "XLM/EUR": "stellar",
+    "ATOM/EUR": "cosmos",
 }
