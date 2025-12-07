@@ -90,7 +90,7 @@ def main() -> None:
         drive = setup_drive(creds_json)
 
         # Download the target file
-        file_id = "1W5fzVRmSSgwgiCjPP1F4MNDBk1MYi6dq"
+        file_id = "1pSxpuDO5vwwbusFMvPKAqoE0rRfFjvCM"
         download_file(drive, file_id, PathsConfig.KRAKEN_TRADES_PDF)
 
     except Exception as exc:
