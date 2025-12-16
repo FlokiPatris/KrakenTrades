@@ -263,4 +263,7 @@ TOKEN_MAP = {
     "SOL/EUR": "solana",
     "XLM/EUR": "stellar",
     "ATOM/EUR": "cosmos",
+    "ONDO/EUR": "ondo-finance",
+    "TIA/EUR": "celestia",
+    "JUP/EUR": "jupiter-exchange-solana",
 }
