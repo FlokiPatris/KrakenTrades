@@ -102,7 +102,7 @@ def generate_portfolio_summary(
     summary_data = [
         ["Total Buys", round(total_buys)],
         ["Total Sells in EUR", round(total_sells_eur)],
-        ["Total Sells in CZK (Tax Base)", f"{math.ceil(total_sells_czk):,} CZK"],
+        ["Total Sells in CZK (Tax Base)", math.ceil(total_sells_czk)],
         ["Unrealized Value (if rest sold)", round(unrealized_value)],
         ["If All Bought Sold Now (market value)", round(total_all_sold_now_value)],
         ["Net Position", net_result],
