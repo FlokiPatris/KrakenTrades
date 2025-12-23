@@ -57,12 +57,13 @@ class MainSummaryMetrics:
     average_sell_price: float
     market_price: Optional[float]
     total_cost: float
-    realized_sells: float
+    realized_sells_eur: float
+    realized_sells_czk: float
     unrealized_value: float
     total_value: float
     roi: float
     if_all_sold_now_roi: float
-
+    
     # 🔹 Nested Market Data
     market_data: Optional[MarketData] = None
 
@@ -82,7 +83,7 @@ class TradeBreakdownSnapshot:
     sell_volume: float
     remaining_volume: float
     potential_value: float
-    sell_total: float
+    sell_total_eur: float
     current_value: float
 
 
