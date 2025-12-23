@@ -2,11 +2,13 @@
 # 🛠️ Portfolio Metrics & Trade Calculations
 # =============================================================================
 from typing import Optional
+import math
 
 import pandas as pd
 
 from kraken_core import (MainSummaryMetrics, MarketData, TradeColumn,
                          TradeMetricsResult, custom_logger)
+from market import cnb
 
 
 def compute_trade_metrics(
@@ -32,7 +34,13 @@ def compute_trade_metrics(
     sell_volume = sells[TradeColumn.TRANSFERRED_VOLUME.value].sum()
     buy_total = buys[TradeColumn.TRANSACTION_PRICE.value].sum()
     buy_fee = buys[TradeColumn.FEE.value].sum()
-    sell_total = sells[TradeColumn.TRANSACTION_PRICE.value].sum()
+    sell_total_eur = sells[TradeColumn.TRANSACTION_PRICE.value].sum()
+    total_sells_czk = 0.0
+    if not sells.empty:
+        total_sells_czk = sells.apply(
+            lambda x: x[TradeColumn.TRANSACTION_PRICE.value] * cnb.get_rate(x[TradeColumn.DATE.value]),
+            axis=1
+        ).sum()
 
     # Remaining holdings and costs
     remaining_volume = max(buy_volume - sell_volume, 0)
@@ -40,11 +48,11 @@ def compute_trade_metrics(
     market_price = market_data.price or 0.0
     current_value = remaining_volume * market_price
     potential_value = buy_volume * market_price
-    total_value = current_value + sell_total
+    total_value = current_value + sell_total_eur
 
     # Average prices and ROI
     average_buy_price = (cost / buy_volume) if buy_volume else 0.0
-    average_sell_price = (sell_total / sell_volume) if sell_volume else 0.0
+    average_sell_price = (sell_total_eur / sell_volume) if sell_volume else 0.0
     realized_roi = ((total_value - cost) / cost) if cost else 0.0
     potential_roi = ((potential_value - cost) / cost) if cost else 0.0
 
@@ -54,11 +62,12 @@ def compute_trade_metrics(
         bought_volume=buy_volume,
         sold_volume=sell_volume,
         remaining_volume=remaining_volume,
-        average_buy_price=round(average_buy_price, 2),
-        average_sell_price=round(average_sell_price, 2),
+        average_buy_price=round(average_buy_price, 4),
+        average_sell_price=round(average_sell_price, 4),
         market_price=market_price,
         total_cost=round(cost),
-        realized_sells=round(sell_total),
+        realized_sells_eur=round(sell_total_eur),
+        realized_sells_czk=total_sells_czk,
         unrealized_value=round(current_value),
         total_value=round(total_value),
         roi=round(realized_roi * 100, 2),
@@ -77,7 +86,8 @@ def compute_trade_metrics(
 
 def generate_portfolio_summary(
     total_buys: float,
-    total_sells: float,
+    total_sells_eur: float,
+    total_sells_czk: float,
     unrealized_value: float,
     total_all_sold_now_value: float,
 ) -> pd.DataFrame:
@@ -86,12 +96,13 @@ def generate_portfolio_summary(
     """
     custom_logger.info("Generating portfolio summary")
 
-    net_result = round(total_sells + unrealized_value - total_buys)
+    net_result = round(total_sells_eur + unrealized_value - total_buys)
     potential_profit = round(total_all_sold_now_value - total_buys)
 
     summary_data = [
         ["Total Buys", round(total_buys)],
-        ["Total Sells", round(total_sells)],
+        ["Total Sells in EUR", round(total_sells_eur)],
+        ["Total Sells in CZK (Tax Base)", f"{math.ceil(total_sells_czk):,} CZK"],
         ["Unrealized Value (if rest sold)", round(unrealized_value)],
         ["If All Bought Sold Now (market value)", round(total_all_sold_now_value)],
         ["Net Position", net_result],

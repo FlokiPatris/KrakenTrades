@@ -101,7 +101,8 @@ def write_portfolio_report(df: pd.DataFrame, output: Path) -> None:
     custom_logger.info(f"📁 Writing Excel report to: {output}")
 
     total_buys_sum = 0.0
-    total_sells_sum = 0.0
+    total_sells_sum_eur = 0.0
+    total_sells_czk_sum = 0.0
     unrealized_value_sum = 0.0
     total_all_sold_now_value_sum = 0.0
     roi_records: List[TradeMetricsResult] = []
@@ -127,7 +128,8 @@ def write_portfolio_report(df: pd.DataFrame, output: Path) -> None:
 
             # Aggregate totals
             total_buys_sum += metrics_result.cost
-            total_sells_sum += metrics.realized_sells
+            total_sells_sum_eur += metrics.realized_sells_eur
+            total_sells_czk_sum += metrics.realized_sells_czk   
             unrealized_value_sum += metrics.unrealized_value
             total_all_sold_now_value_sum += metrics_result.potential_value
 
@@ -146,7 +148,7 @@ def write_portfolio_report(df: pd.DataFrame, output: Path) -> None:
                 sell_volume=metrics.sold_volume,
                 remaining_volume=metrics.remaining_volume,
                 potential_value=metrics_result.potential_value,
-                sell_total=metrics.realized_sells,
+                sell_total_eur=metrics.realized_sells_eur,
                 current_value=metrics.unrealized_value,
             )
             write_token_sheet(snapshot, writer)
@@ -154,7 +156,8 @@ def write_portfolio_report(df: pd.DataFrame, output: Path) -> None:
         # Portfolio summary
         summary_df = generate_portfolio_summary(
             total_buys=total_buys_sum,
-            total_sells=total_sells_sum,
+            total_sells_eur=total_sells_sum_eur,
+            total_sells_czk=total_sells_czk_sum,
             unrealized_value=unrealized_value_sum,
             total_all_sold_now_value=total_all_sold_now_value_sum,
         )

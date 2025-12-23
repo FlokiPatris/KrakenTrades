@@ -48,7 +48,7 @@ def create_summary_block(snapshot: TradeBreakdownSnapshot) -> list[pd.DataFrame]
             "ALREADY SOLD:",
             {
                 TradeColumn.TRANSFERRED_VOLUME.value: f"{snapshot.sell_volume} {snapshot.token}",
-                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total} {snapshot.currency}",
+                TradeColumn.TRANSACTION_PRICE.value: f"{snapshot.sell_total_eur} {snapshot.currency}",
             },
         ),
         generate_trade_report_block(
